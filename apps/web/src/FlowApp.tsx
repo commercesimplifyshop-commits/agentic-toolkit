@@ -16,7 +16,11 @@ import { DebugControls } from './ui/debug/DebugControls'
 import { DebugPanel } from './ui/debug/DebugPanel'
 import { DebugSteps } from './ui/debug/DebugSteps'
 
-export function App() {
+/**
+ * The 3D purchase-flow feature (simulation + installation map + flow debugger),
+ * rendered inside the dashboard's content area.
+ */
+export function FlowApp({ workspaceId, mode }: { workspaceId: string; mode: 'flow' | 'debug' }) {
   const [run, setRun] = useState(0)
   const [sourceLabel, setSourceLabel] = useState('')
   const stopRef = useRef<() => void>()
@@ -31,8 +35,21 @@ export function App() {
   const debugging = useDebug((s) => s.active)
 
   useEffect(() => {
-    useMap.getState().init()
-  }, [])
+    let cancelled = false
+    useMap
+      .getState()
+      .loadWorkspace(workspaceId)
+      .then(() => {
+        const map = useMap.getState().map
+        if (cancelled || !map) return
+        if (mode === 'debug') useDebug.getState().open(map)
+        else useDebug.getState().close()
+      })
+    return () => {
+      cancelled = true
+      useDebug.getState().close()
+    }
+  }, [workspaceId, mode])
 
   // Debug playback clock
   useEffect(() => {
@@ -54,10 +71,11 @@ export function App() {
   }, [])
 
   return (
-    <div className="app">
+    <div className={`app mode-${debugging ? 'debug' : 'flow'}`}>
       <World />
-      <TopBar sourceLabel={sourceLabel} onReset={reset} />
-      <MapBar />
+      {/* The crowd simulation KPIs and map search only make sense outside the single-flow debugger */}
+      {!debugging && <TopBar sourceLabel={sourceLabel} onReset={reset} />}
+      {!debugging && <MapBar />}
       {debugging ? (
         <>
           <div className="left-col">

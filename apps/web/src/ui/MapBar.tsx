@@ -4,9 +4,9 @@ import { KIND_LABEL, useMap } from '../map/useMap'
 import { useStore } from '../store/useStore'
 import { zoneLabel } from './InstallationPanel'
 
-/** Project selector + search across every integration point of the installation. */
+/** Installation summary + search across every integration point of the installation. */
 export function MapBar() {
-  const { available, slug, map, load, focusItem, annotatedCount } = useMap()
+  const { available, map, focusItem, annotatedCount } = useMap()
   const select = useStore((s) => s.select)
   const debugging = useDebug((s) => s.active)
   const openDebug = useDebug((s) => s.open)
@@ -29,9 +29,7 @@ export function MapBar() {
 
   if (available.length === 0) {
     return (
-      <div className="mapbar card empty">
-        Nenhum mapa de instalação. Rode <code>node tools/extract.mjs &lt;magento-root&gt; --name projeto</code>
-      </div>
+      <div className="mapbar card empty">Carregando o mapa da instalação…</div>
     )
   }
 
@@ -41,13 +39,9 @@ export function MapBar() {
 
   return (
     <div className="mapbar card">
-      <select value={slug ?? ''} onChange={(e) => load(e.target.value || null)}>
-        {available.map((m) => (
-          <option key={m.slug} value={m.slug}>
-            {m.name} · {m.edition} {m.magentoVersion}
-          </option>
-        ))}
-      </select>
+      <strong className="map-name">
+        {available[0].edition} {available[0].magentoVersion}
+      </strong>
       {map && (
         <span className="map-meta">
           {map.modules.filter((m) => m.origin !== 'native').length} módulos · {custom} customizações · {annotatedCount} analisadas pelo Claude

@@ -2,7 +2,7 @@
 // Prepares a sparse checkout of magento/magento2 with only what the map needs:
 // API declarations, events/di config and the PHP classes of native plugins.
 //
-//   node tools/native-reference.mjs 2.4.1-p1
+//   node packages/analyzer/native-reference.mjs 2.4.1-p1 [--dir <destino>]
 
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -10,11 +10,12 @@ import path from 'node:path'
 
 const tag = process.argv[2]
 if (!tag) {
-  console.error('uso: node tools/native-reference.mjs <tag>   (ex.: 2.4.1-p1)')
+  console.error('uso: node native-reference.mjs <tag> [--dir <destino>]   (ex.: 2.4.1-p1)')
   process.exit(1)
 }
 
-const dir = path.resolve('reference', `magento2-${tag}`)
+const dirFlag = process.argv.indexOf('--dir')
+const dir = dirFlag > 0 ? path.resolve(process.argv[dirFlag + 1]) : path.resolve('reference', `magento2-${tag}`)
 const git = (...args) => execFileSync('git', ['-C', dir, ...args], { stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 256 * 1024 * 1024 }).toString()
 
 if (!fs.existsSync(dir)) {

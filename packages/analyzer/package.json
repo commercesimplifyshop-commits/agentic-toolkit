@@ -1,0 +1,15 @@
+{
+  "name": "@storeflow/analyzer",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Extrator estático de pontos de integração de uma instalação Magento 2 (somente leitura)",
+  "type": "module",
+  "bin": {
+    "storeflow-extract": "./extract.mjs",
+    "storeflow-context": "./context.mjs",
+    "storeflow-native-reference": "./native-reference.mjs"
+  },
+  "dependencies": {
+    "fast-xml-parser": "4.5.0"
+  }
+}

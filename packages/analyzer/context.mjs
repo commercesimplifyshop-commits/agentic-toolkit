@@ -2,7 +2,7 @@
 // Prints the code behind each customization of a map, so Claude can explain
 // and classify it without opening files one by one.
 //
-//   node tools/context.mjs <slug> [--zone checkout] [--origin custom,thirdparty] [--unannotated] [--max-lines 50] [--ids id1,id2]
+//   node packages/analyzer/context.mjs <slug> --maps-dir <pasta> [--zone checkout] [--origin custom,thirdparty] [--unannotated] [--max-lines 50] [--ids id1,id2]
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -18,7 +18,7 @@ if (!slug || slug.startsWith('--')) {
   process.exit(1)
 }
 
-const mapsDir = path.resolve('public/maps')
+const mapsDir = path.resolve(flag('maps-dir') ?? 'public/maps')
 const map = JSON.parse(fs.readFileSync(path.join(mapsDir, `${slug}.json`), 'utf8'))
 const notesFile = path.join(mapsDir, `${slug}.annotations.json`)
 const notes = fs.existsSync(notesFile) ? JSON.parse(fs.readFileSync(notesFile, 'utf8')) : { items: {} }

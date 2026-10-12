@@ -1,0 +1,159 @@
+import { Injectable } from '@nestjs/common'
+import { spawn } from 'node:child_process'
+import path from 'node:path'
+import { ANALYZER_DIR } from '../config/paths'
+import { assertWritableTarget, ReadOnlyViolation } from './path-guard'
+
+export interface RunOptions {
+  cwd?: string
+  env?: Record<string, string>
+  timeoutMs?: number
+  /** Directories that must never be written to (the Magento roots involved) */
+  protectedRoots?: string[]
+  onLine?: (line: string) => void
+  /** Real binary to spawn when the validated program name is a logical one (e.g. claude → claude.exe path) */
+  executable?: string
+  stdin?: string
+}
+
+export interface RunResult {
+  code: number
+  stdout: string
+  stderr: string
+}
+
+/** git subcommands StoreFlow may use: clone/fetch into its data dir and read-only queries. */
+const GIT_ALLOWED = new Set(['clone', 'fetch', 'rev-parse', 'log', 'ls-remote', 'ls-files', 'remote', 'sparse-checkout', 'checkout', 'branch', 'shortlog', 'show'])
+const GIT_FORBIDDEN_FLAGS = [/^--upload-pack/, /^--receive-pack/, /^-u$/, /^--exec/, /^--template/, /^--config=core\.(hooksPath|sshCommand|fsmonitor)/]
+
+const ANALYZER_SCRIPTS = new Set(['extract.mjs', 'native-reference.mjs', 'context.mjs'])
+
+/** Claude Code may only use tools that read */
+export const CLAUDE_READONLY_TOOLS = ['Read', 'Grep', 'Glob']
+export const CLAUDE_DENIED_TOOLS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch']
+
+/**
+ * Validates and runs external programs. Every command is checked against an
+ * allowlist before it starts; anything that could write to a Magento
+ * repository is rejected.
+ */
+@Injectable()
+export class CommandRunner {
+  validate(cmd: string, args: string[], opts: RunOptions = {}) {
+    const protectedRoots = opts.protectedRoots ?? []
+    switch (cmd) {
+      case 'git':
+        return this.validateGit(args, opts)
+      case process.execPath:
+      case 'node': {
+        const script = args[0] ? path.resolve(args[0]) : ''
+        if (path.dirname(script) !== ANALYZER_DIR || !ANALYZER_SCRIPTS.has(path.basename(script))) {
+          throw new ReadOnlyViolation(`Script node não permitido: ${args[0]}`, 'cmd.node-script')
+        }
+        for (const flag of ['--out', '--dir', '--maps-dir']) {
+          const i = args.indexOf(flag)
+          if (i >= 0) assertWritableTarget(args[i + 1], protectedRoots)
+        }
+        if (path.basename(script) === 'native-reference.mjs' && !args.includes('--dir')) {
+          throw new ReadOnlyViolation('native-reference precisa de --dir dentro do diretório de dados', 'cmd.node-script')
+        }
+        return
+      }
+      case 'claude': {
+        const listAfter = (flag: string) => {
+          const i = args.indexOf(flag)
+          return i < 0 ? null : (args[i + 1] ?? '').split(/[ ,]+/).filter(Boolean)
+        }
+        // --tools restricts the tool set itself; --allowedTools only pre-approves
+        for (const flag of ['--tools', '--allowedTools']) {
+          const tools = listAfter(flag)
+          if (!tools || tools.length === 0 || tools.some((t) => !CLAUDE_READONLY_TOOLS.includes(t))) {
+            throw new ReadOnlyViolation(`Claude Code precisa de ${flag} só com ferramentas de leitura (${CLAUDE_READONLY_TOOLS.join(', ')})`, 'cmd.claude-tools')
+          }
+        }
+        const denied = listAfter('--disallowedTools') ?? []
+        if (CLAUDE_DENIED_TOOLS.some((t) => !denied.includes(t))) throw new ReadOnlyViolation('Claude Code precisa negar explicitamente Edit/Write/Bash/Web*', 'cmd.claude-tools')
+        // A Magento repo could ship .claude/settings.json with hooks: only user settings load
+        if (listAfter('--setting-sources')?.join(',') !== 'user') throw new ReadOnlyViolation('Claude Code precisa de --setting-sources user (ignora hooks do repositório)', 'cmd.claude-settings')
+        if (!args.includes('--strict-mcp-config')) throw new ReadOnlyViolation('Claude Code precisa de --strict-mcp-config (sem servidores MCP)', 'cmd.claude-mcp')
+        if (args.some((a) => /dangerously|bypassPermissions|acceptEdits/.test(a))) throw new ReadOnlyViolation('Bypass de permissões do Claude Code é proibido', 'cmd.claude-bypass')
+        // Extra readable dirs may only be StoreFlow's own data (maps, annotations)
+        args.forEach((a, i) => {
+          if (a === '--add-dir') assertWritableTarget(args[i + 1] ?? '', protectedRoots)
+        })
+        return
+      }
+      default:
+        throw new ReadOnlyViolation(`Programa não permitido: ${cmd}`, 'cmd.not-allowed')
+    }
+  }
+
+  private validateGit(args: string[], opts: RunOptions) {
+    // git -C <dir> <sub> ... : -C must point inside the data dir for anything that writes
+    let i = 0
+    let workDir = opts.cwd
+    while (args[i] === '-C' || args[i] === '-c') {
+      if (args[i] === '-C') workDir = args[i + 1]
+      if (args[i] === '-c' && /^(core\.(hooksPath|sshCommand|fsmonitor)|protocol\.(file|ext)\.allow=always)/.test(args[i + 1])) {
+        throw new ReadOnlyViolation(`Configuração git não permitida: ${args[i + 1]}`, 'cmd.git-config')
+      }
+      i += 2
+    }
+    const sub = args[i]
+    if (!GIT_ALLOWED.has(sub)) throw new ReadOnlyViolation(`git ${sub} não é permitido (somente leitura)`, 'cmd.git-subcommand')
+    const rest = args.slice(i + 1)
+    for (const a of rest) {
+      if (GIT_FORBIDDEN_FLAGS.some((re) => re.test(a))) throw new ReadOnlyViolation(`Flag git não permitida: ${a}`, 'cmd.git-flag')
+    }
+
+    if (sub === 'remote' && !(rest[0] === 'get-url' || (rest[0] === 'set-url' && rest[1] === '--push'))) {
+      throw new ReadOnlyViolation('git remote só pode ler a URL ou desativar o push', 'cmd.git-remote')
+    }
+    if (sub === 'branch' && rest.some((a) => !/^(--show-current|-a|-r|--list)$/.test(a))) {
+      throw new ReadOnlyViolation('git branch só pode listar', 'cmd.git-branch')
+    }
+    // Commands that write to a working tree only run in StoreFlow's own clones
+    if (['clone', 'fetch', 'sparse-checkout', 'checkout'].includes(sub) || (sub === 'remote' && rest[0] === 'set-url')) {
+      const target = sub === 'clone' ? rest.filter((a) => !a.startsWith('-')).pop() : workDir
+      if (!target) throw new ReadOnlyViolation(`git ${sub} sem destino explícito`, 'cmd.git-target')
+      assertWritableTarget(path.resolve(opts.cwd ?? '.', target), opts.protectedRoots ?? [])
+    }
+    if (sub === 'clone') {
+      const url = rest.filter((a) => !a.startsWith('-')).slice(-2)[0] ?? ''
+      if (!/^(https:\/\/|ssh:\/\/|git@[\w.-]+:)/.test(url)) throw new ReadOnlyViolation(`URL de repositório não permitida: ${url}`, 'cmd.git-url')
+    }
+  }
+
+  run(cmd: string, args: string[], opts: RunOptions = {}): Promise<RunResult> {
+    this.validate(cmd, args, opts)
+    return new Promise((resolve, reject) => {
+      const child = spawn(opts.executable ?? (cmd === 'node' ? process.execPath : cmd), args, {
+        cwd: opts.cwd,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...opts.env },
+        shell: false,
+        windowsHide: true,
+      })
+      if (opts.stdin !== undefined) child.stdin.end(opts.stdin)
+      else child.stdin.end()
+      let stdout = ''
+      let stderr = ''
+      const timer = setTimeout(() => child.kill(), opts.timeoutMs ?? 10 * 60_000)
+      const feed = (chunk: Buffer, sink: 'out' | 'err') => {
+        const text = chunk.toString()
+        if (sink === 'out') stdout += text
+        else stderr += text
+        if (opts.onLine) for (const line of text.split(/\r?\n/)) if (line.trim()) opts.onLine(line)
+      }
+      child.stdout.on('data', (c) => feed(c, 'out'))
+      child.stderr.on('data', (c) => feed(c, 'err'))
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+      child.on('close', (code) => {
+        clearTimeout(timer)
+        resolve({ code: code ?? -1, stdout, stderr })
+      })
+    })
+  }
+}

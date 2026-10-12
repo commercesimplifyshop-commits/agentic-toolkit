@@ -83,18 +83,9 @@ interface MapState {
   annotatedCount: number
   error: string | null
   focusItemId: string | null
-  init: () => Promise<void>
-  load: (slug: string | null) => Promise<void>
+  /** Loads a workspace's map + annotations from the StoreFlow API (cached per workspace). */
+  loadWorkspace: (id: string, force?: boolean) => Promise<void>
   focusItem: (id: string | null) => void
-}
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const res = await fetch(url, { cache: 'no-store' })
-    return res.ok ? ((await res.json()) as T) : null
-  } catch {
-    return null
-  }
 }
 
 export const useMap = create<MapState>((set, get) => ({
@@ -106,20 +97,18 @@ export const useMap = create<MapState>((set, get) => ({
   error: null,
   focusItemId: null,
 
-  init: async () => {
-    const index = await fetchJson<{ maps: MapIndexEntry[] }>('/maps/index.json')
-    set({ available: index?.maps ?? [] })
-    const first = index?.maps[0]?.slug
-    if (first && !get().slug) await get().load(first)
-  },
-
-  load: async (slug) => {
-    if (!slug) return set({ slug: null, map: null, zoneNotes: {}, annotatedCount: 0 })
-    const [map, notes] = await Promise.all([
-      fetchJson<InstallMap>(`/maps/${slug}.json`),
-      fetchJson<Annotations>(`/maps/${slug}.annotations.json`),
-    ])
-    if (!map) return set({ error: `Não foi possível carregar o mapa "${slug}"` })
+  loadWorkspace: async (id, force = false) => {
+    if (!force && get().slug === id && get().map) return
+    let payload: { map: InstallMap | null; annotations: Annotations | null } | null = null
+    try {
+      const res = await fetch(`/api/workspaces/${id}/map`, { cache: 'no-store' })
+      payload = res.ok ? await res.json() : null
+    } catch {
+      payload = null
+    }
+    const map = payload?.map
+    const notes = payload?.annotations
+    if (!map) return set({ slug: id, map: null, error: 'Mapa ainda não gerado para esta instalação' })
     let annotatedCount = 0
     const items = map.items.map((it): MapItem => {
       const note = notes?.items?.[it.id]
@@ -132,7 +121,14 @@ export const useMap = create<MapState>((set, get) => ({
         zoneSource: !note?.zone ? 'regra' : note.zone !== it.zone ? 'claude' : 'confirmada',
       }
     })
-    set({ slug, map: { ...map, items }, zoneNotes: notes?.zones ?? {}, annotatedCount, error: null })
+    set({
+      slug: id,
+      available: [{ slug: id, name: map.project.name, edition: map.project.edition, magentoVersion: map.project.magentoVersion }],
+      map: { ...map, items },
+      zoneNotes: notes?.zones ?? {},
+      annotatedCount,
+      error: null,
+    })
   },
 
   focusItem: (focusItemId) => set({ focusItemId }),

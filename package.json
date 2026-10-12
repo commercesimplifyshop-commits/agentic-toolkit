@@ -1,30 +1,20 @@
 {
-  "name": "magento-flow-3d",
+  "name": "storeflow",
   "private": true,
-  "version": "0.1.0",
-  "type": "module",
+  "version": "0.2.0",
+  "description": "Dashboard somente leitura para entender instalações Magento 2: visão geral, mapa de APIs/plugins/observers, fluxo 3D, debug de execução e IA",
+  "repository": "github:commercesimplifyshop-commits/magento-flow-3d",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@react-three/drei": "^9.114.0",
-    "@react-three/fiber": "^8.17.10",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.169.0",
-    "zustand": "^4.5.5"
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w @storeflow/api\" \"npm run dev -w @storeflow/web\"",
+    "build": "npm run build -w @storeflow/api && npm run build -w @storeflow/web",
+    "start": "npm run start -w @storeflow/api",
+    "test": "npm test -w @storeflow/api"
   },
   "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@types/three": "^0.169.0",
-    "@vitejs/plugin-react": "^4.3.3",
-    "fast-xml-parser": "^4.5.0",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10"
-  },
-  "description": "Fluxo de compra do Magento 2 em 3D: mapa de APIs, plugins e observers da instalação e debug da ordem de execução",
-  "repository": "github:commercesimplifyshop-commits/magento-flow-3d"
+    "concurrently": "9.1.0"
+  }
 }

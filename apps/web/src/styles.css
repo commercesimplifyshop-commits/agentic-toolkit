@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 code { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 11px; }
 h2, h3, p { margin: 0; }
 
-.app { position: fixed; inset: 0; }
+.app { position: absolute; inset: 0; }
 .app canvas { display: block; }
 
 .card {
@@ -608,3 +608,22 @@ h2, h3, p { margin: 0; }
 .debug-bubble strong { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 11px; }
 .debug-bubble.custom { background: #9a3412; }
 .debug-bubble.custom span { color: #fed7aa; }
+
+/* ---- embedded in the StoreFlow dashboard ----------------------------------- */
+
+.sf-flow-host {
+  color: #0f172a;
+  font-size: 13px;
+  --left-w: 250px;
+  --right-w: 340px;
+}
+.sf-flow-host input,
+.sf-flow-host select { color: #0f172a; }
+.sf-flow-host .kpi:nth-child(n + 4) { display: none; }
+.sf-flow-host .brand { width: var(--left-w); }
+.app.mode-debug .left-col,
+.app.mode-debug .sidepanel { top: 16px; }
+.sf-flow-host .debug-panel { width: 430px; }
+.sf-flow-host .debug-controls { right: calc(16px + 430px + 12px); gap: 12px; }
+.sf-flow-host .debug-now .eyebrow { white-space: nowrap; }
+.sf-flow-host .map-name { white-space: nowrap; font-size: 12px; }

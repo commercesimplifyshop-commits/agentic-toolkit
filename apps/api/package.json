@@ -1,0 +1,51 @@
+{
+  "name": "@storeflow/api",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Backend somente leitura do StoreFlow: workspaces Magento, análise estática, auditoria e IA",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@nestjs/common": "10.4.15",
+    "@nestjs/core": "10.4.15",
+    "@nestjs/platform-express": "10.4.15",
+    "@storeflow/analyzer": "0.2.0",
+    "multer": "1.4.5-lts.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.1",
+    "yauzl": "3.1.3",
+    "@anthropic-ai/sdk": "0.133.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "10.4.9",
+    "@types/express": "4.17.21",
+    "@types/jest": "29.5.14",
+    "@types/multer": "1.4.12",
+    "@types/node": "22.9.0",
+    "@types/yauzl": "2.10.3",
+    "jest": "29.7.0",
+    "ts-jest": "29.2.5",
+    "typescript": "5.6.3"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/test"
+    ],
+    "transform": {
+      "^.+.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "test/tsconfig.json"
+        }
+      ]
+    },
+    "setupFiles": [
+      "<rootDir>/test/setup.ts"
+    ]
+  }
+}

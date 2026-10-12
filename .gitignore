@@ -1,5 +1,7 @@
 node_modules
 dist
-reference/
+*.tsbuildinfo
+# Installation data (client code, maps, annotations) never goes to git
+.storeflow/
 public/maps/
-tsconfig.tsbuildinfo
+reference/
