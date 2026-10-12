@@ -111,6 +111,7 @@ export function IntegrationsPage() {
               <th>Ponto de integração</th>
               <th style={{ width: 220 }}>Módulo</th>
               <th style={{ width: 120 }}>Etapa</th>
+              <th style={{ width: 96, textAlign: 'right' }}>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -137,7 +138,7 @@ function Row({ item, open, onToggle, workspaceId }: { item: MapItem; open: boole
   const acl = item.details.acl as string[] | undefined
   return (
     <>
-      <tr className="clickable" onClick={onToggle}>
+      <tr className={`clickable ${open ? 'sf-row-open' : ''}`} onClick={onToggle}>
         <td>
           <KindBadge kind={item.kind} />
         </td>
@@ -161,10 +162,23 @@ function Row({ item, open, onToggle, workspaceId }: { item: MapItem; open: boole
           <OriginBadge origin={item.origin} />
         </td>
         <td className="sf-muted">{item.zone}</td>
+        <td style={{ textAlign: 'right' }}>
+          <button
+            className={`sf-actions-btn ${open ? 'on' : ''}`}
+            aria-expanded={open}
+            title={open ? 'Fechar ações' : 'Abrir XML, classe PHP' + (item.kind === 'rest' || item.kind === 'graphql' ? ', testar no simulador' : '')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle()
+            }}
+          >
+            Ações <span className="chev">▾</span>
+          </button>
+        </td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={4} style={{ background: 'var(--sf-panel-2)' }}>
+          <td colSpan={5} style={{ background: 'var(--sf-panel-2)' }}>
             <ItemDetails item={item} workspaceId={workspaceId} />
           </td>
         </tr>

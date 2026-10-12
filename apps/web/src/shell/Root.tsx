@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate, RouterProvider, useNavigate } from 'reac
 import { Layout } from './Layout'
 import { AskPage } from './pages/AskPage'
 import { AuditPage } from './pages/AuditPage'
-import { CodePage } from './pages/CodePage'
 import { ConnectPage } from './pages/ConnectPage'
 import { IntegrationsPage } from './pages/IntegrationsPage'
 import { ModulesPage } from './pages/ModulesPage'
@@ -16,6 +15,10 @@ import './shell.css'
 
 // Three.js is heavy: the 3D feature loads only when opened
 const FlowPage = lazy(() => import('./pages/FlowPage').then((m) => ({ default: m.FlowPage })))
+const ApiClientPage = lazy(() => import('./pages/ApiClientPage').then((m) => ({ default: m.ApiClientPage })))
+const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })))
+const BoardPage = lazy(() => import('./pages/BoardPage').then((m) => ({ default: m.BoardPage })))
+const CodePage = lazy(() => import('./pages/CodePage').then((m) => ({ default: m.CodePage })))
 const loading = <div className="sf-page"><span className="sf-spinner" /></div>
 
 /** Sends the user to their first analyzed installation, or to the connect screen. */
@@ -50,11 +53,14 @@ const router = createBrowserRouter([
       { path: 'modules', element: <ModulesPage /> },
       { path: 'integrations', element: <IntegrationsPage /> },
       { path: 'integrations/:kind', element: <IntegrationsPage /> },
+      { path: 'api-client', element: <Suspense fallback={loading}><ApiClientPage /></Suspense> },
+      { path: 'docs', element: <Suspense fallback={loading}><DocsPage /></Suspense> },
+      { path: 'board', element: <Suspense fallback={loading}><BoardPage /></Suspense> },
       { path: 'flow', element: <Suspense fallback={loading}><FlowPage mode="flow" /></Suspense> },
       { path: 'debug', element: <Suspense fallback={loading}><FlowPage mode="debug" /></Suspense> },
       { path: 'risks', element: <RisksPage /> },
       { path: 'security', element: <SecurityPage /> },
-      { path: 'code', element: <CodePage /> },
+      { path: 'code', element: <Suspense fallback={loading}><CodePage /></Suspense> },
       { path: 'audit', element: <AuditPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],

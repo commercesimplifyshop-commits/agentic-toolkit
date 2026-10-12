@@ -32,7 +32,7 @@ const outDir = path.resolve(flag('out') ?? 'public/maps')
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
-  isArray: (name, _jpath, _leaf, isAttribute) => !isAttribute && ['route', 'resource', 'event', 'observer', 'type', 'plugin', 'preference', 'router', 'module', 'group', 'job', 'topic', 'handler', 'consumer'].includes(name),
+  isArray: (name, _jpath, _leaf, isAttribute) => !isAttribute && ['route', 'resource', 'event', 'observer', 'type', 'plugin', 'preference', 'router', 'module', 'group', 'job', 'topic', 'handler', 'consumer', 'parameter'].includes(name),
 })
 
 const arr = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v])
@@ -127,7 +127,8 @@ function parseWebapi(file, mod, text) {
       kind: 'rest',
       title,
       subtitle: `${shortClass(svc.class)}::${svc.method}`,
-      details: { method: r.method, url: r.url, serviceClass: svc.class, serviceMethod: svc.method, acl },
+      // <data><parameter force="true">%cart_id%</parameter></data>: injected by Magento from the token, not sent by the client
+      details: { method: r.method, url: r.url, serviceClass: svc.class, serviceMethod: svc.method, acl, forcedParams: arr(r.data?.parameter).map((p) => p.name) },
       ...classify(`${r.url} ${svc.class} ${svc.method}`, mod.name),
       module: mod.name,
       origin: mod.origin,

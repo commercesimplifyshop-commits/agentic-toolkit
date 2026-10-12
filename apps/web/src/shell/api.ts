@@ -11,15 +11,22 @@ export class ApiError extends Error {
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
-  const res = await fetch(`/api${url}`, {
-    method,
-    headers: body instanceof FormData || body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(`/api${url}`, {
+      method,
+      headers: body instanceof FormData || body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
+    })
+  } catch {
+    // The browser only says "Failed to fetch": the StoreFlow server is down or restarting
+    throw new ApiError('Sem conexão com o servidor do StoreFlow. Ele foi encerrado ou está reiniciando; tente de novo em alguns segundos.', 0)
+  }
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
   if (!res.ok) {
-    const msg = data?.error ?? data?.message ?? `Erro ${res.status}`
+    // Nest exceptions carry the readable text in `message` (`error` is just "Bad Request"); the guard uses `error`
+    const msg = (data?.statusCode ? data.message : data?.error ?? data?.message) ?? `Erro ${res.status}`
     throw new ApiError(Array.isArray(msg) ? msg.join(', ') : String(msg), res.status, data?.rule)
   }
   return data as T
@@ -152,8 +159,18 @@ export interface Providers {
 
 /** Polls a background job until it finishes. */
 export async function waitJob(jobId: string, onUpdate: (job: Job) => void): Promise<Job> {
+  let offline = 0
   for (;;) {
-    const job = await api.get<Job>(`/jobs/${jobId}`)
+    let job: Job
+    try {
+      job = await api.get<Job>(`/jobs/${jobId}`)
+      offline = 0
+    } catch (err) {
+      // A short server restart shouldn't break the screen: keep polling for ~30 s
+      if (!(err instanceof ApiError) || err.status !== 0 || ++offline > 25) throw err
+      await new Promise((r) => setTimeout(r, 1200))
+      continue
+    }
     onUpdate(job)
     if (job.status !== 'running') return job
     await new Promise((r) => setTimeout(r, 1200))

@@ -4,9 +4,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ANALYZER_DIR, DATA_DIR } from '../src/config/paths'
+import { CodeIndexService } from '../src/files/code-index.service'
+import { dataGetters, fieldName, findMethod } from '../src/apiclient/php-signature'
 import { ACTION_KEY } from '../src/readonly/actions'
 import { AuditService } from '../src/readonly/audit.service'
-import { CommandRunner } from '../src/readonly/command-runner.service'
+import { CLAUDE_DOCS_BUILTINS, CLAUDE_DOCS_DENIED, CLAUDE_DOCS_TOOLS, CommandRunner } from '../src/readonly/command-runner.service'
 import { assertWritableTarget, isSensitive, ReadOnlyViolation, resolveInside } from '../src/readonly/path-guard'
 import { ReadOnlyGuard } from '../src/readonly/readonly.guard'
 import { ReadOnlyFs } from '../src/readonly/readonly-fs.service'
@@ -153,6 +155,20 @@ describe('CommandRunner allowlist', () => {
     expect(() => runner.validate('claude', [...claudeOk, '--add-dir', path.join(DATA_DIR, 'workspaces', 'x', 'maps')])).not.toThrow()
     blocked(() => runner.validate('claude', [...claudeOk, '--add-dir', os.homedir()]), 'write.outside-data-dir')
   })
+
+  const docsOk = ['-p', '--tools', CLAUDE_DOCS_BUILTINS.join(','), '--allowedTools', CLAUDE_DOCS_TOOLS.join(','), '--disallowedTools', CLAUDE_DOCS_DENIED.join(','), '--setting-sources', 'user']
+  const docsCwd = path.join(DATA_DIR, 'workspaces', 'x', 'docs', 'publish')
+
+  it('publishes to Claude Docs only with the connector, no code tools, from the data dir', () => {
+    const root = fakeMagento()
+    expect(() => runner.validate('claude-docs', docsOk, { cwd: docsCwd, protectedRoots: [root] })).not.toThrow()
+    blocked(() => runner.validate('claude-docs', docsOk.map((a) => (a === CLAUDE_DOCS_BUILTINS.join(',') ? 'Artifact,Read' : a)), { cwd: docsCwd }), 'cmd.claude-docs-tools')
+    blocked(() => runner.validate('claude-docs', docsOk.map((a) => (a === CLAUDE_DOCS_TOOLS.join(',') ? `${a},mcp__claude_ai_Claude_Docs__delete` : a)), { cwd: docsCwd }), 'cmd.claude-docs-tools')
+    blocked(() => runner.validate('claude-docs', docsOk.map((a) => (a === CLAUDE_DOCS_TOOLS.join(',') ? `${a},mcp__claude_ai_Vercel__create_deployment` : a)), { cwd: docsCwd }), 'cmd.claude-docs-tools')
+    blocked(() => runner.validate('claude-docs', [...docsOk, '--add-dir', root], { cwd: docsCwd }), 'cmd.claude-bypass')
+    blocked(() => runner.validate('claude-docs', docsOk, { cwd: root, protectedRoots: [root] }))
+    blocked(() => runner.validate('claude-docs', docsOk), 'cmd.claude-docs-cwd')
+  })
 })
 
 describe('ReadOnlyGuard', () => {
@@ -174,10 +190,127 @@ describe('ReadOnlyGuard', () => {
     expect(() => guard.canActivate(ctx('overview.get', 'DELETE', { params: { id: 'abc-123' } }))).toThrow(ForbiddenException)
   })
 
+  it('validates documentation requests', () => {
+    const gen = (body: Record<string, unknown>) => () => guard.canActivate(ctx('docs.generate', 'POST', { params: { id: 'abc-123' }, body }))
+    expect(gen({ kind: 'modulo', subject: 'Acme_Refund' })()).toBe(true)
+    expect(gen({ kind: 'script', subject: 'x y' })).toThrow(ForbiddenException)
+    expect(gen({ kind: 'fluxo', subject: '' })).toThrow(ForbiddenException)
+    expect(gen({ kind: 'tema', subject: 'ERP', regenerate: '../../etc' })).toThrow(ForbiddenException)
+    expect(() => guard.canActivate(ctx('docs.export', 'GET', { params: { id: 'abc-123', docId: 'acme-1a2b3c' }, query: { format: 'exe' } }))).toThrow(ForbiddenException)
+    expect(() => guard.canActivate(ctx('docs.get', 'GET', { params: { id: 'abc-123', docId: '..' } }))).toThrow(ForbiddenException)
+  })
+
+  it('validates whiteboard requests', () => {
+    const save = (boardId: string, body: Record<string, unknown>) => () => guard.canActivate(ctx('boards.save', 'PUT', { params: { id: 'abc-123', boardId }, body }))
+    expect(save('quadro-1a2b3c', { scene: { elements: [], files: {} } })()).toBe(true)
+    expect(save('quadro-1a2b3c', { name: 'Arquitetura do checkout' })()).toBe(true)
+    expect(save('../../app', { scene: { elements: [] } })).toThrow(ForbiddenException)
+    expect(save('quadro-1a2b3c', { scene: { elements: 'x' } })).toThrow(ForbiddenException)
+    expect(save('quadro-1a2b3c', { name: 'x'.repeat(200) })).toThrow(ForbiddenException)
+    expect(() => guard.canActivate(ctx('boards.save', 'POST', { params: { id: 'abc-123', boardId: 'quadro-1a2b3c' }, body: {} }))).toThrow(ForbiddenException)
+  })
+
   it('runs the action validator', () => {
     expect(() => guard.canActivate(ctx('files.read', 'GET', { params: { id: 'abc-123' }, query: { path: 'app/etc/env.php' } }))).toThrow(ForbiddenException)
     expect(() => guard.canActivate(ctx('files.read', 'GET', { params: { id: 'abc-123' }, query: { path: '../secret' } }))).toThrow(ForbiddenException)
     expect(guard.canActivate(ctx('files.read', 'GET', { params: { id: 'abc-123' }, query: { path: 'composer.json' } }))).toBe(true)
+  })
+})
+
+describe('API simulator', () => {
+  const audit = new AuditService()
+  const guard = new ReadOnlyGuard(new Reflector(), audit, { get: () => ({ rootOf: () => '/x' }) } as never)
+  const send = (body: Record<string, unknown>) => {
+    const handler = () => undefined
+    Reflect.defineMetadata(ACTION_KEY, 'apiclient.send', handler)
+    const req = { method: 'POST', originalUrl: '/api/x', params: { id: 'abc-123' }, query: {}, body: { method: 'GET', ...body } }
+    return () => guard.canActivate({ getHandler: () => handler, switchToHttp: () => ({ getRequest: () => req }) } as never)
+  }
+
+  it('accepts http(s) requests to the chosen environment', () => {
+    expect(send({ url: 'https://loja.test/rest/default/V1/orders', method: 'POST', body: '{}', headers: { Authorization: 'Bearer x' } })()).toBe(true)
+  })
+
+  it('rejects other protocols, credentials in the URL, bad methods/headers and StoreFlow itself', () => {
+    expect(send({ url: 'file:///etc/passwd' })).toThrow(ForbiddenException)
+    expect(send({ url: 'https://admin:pw@loja.test/' })).toThrow(ForbiddenException)
+    expect(send({ url: 'https://loja.test/', method: 'TRACE' })).toThrow(ForbiddenException)
+    expect(send({ url: 'https://loja.test/', headers: { 'Bad Header\n': 'x' } })).toThrow(ForbiddenException)
+    expect(send({ url: 'http://127.0.0.1:4310/api/workspaces' })).toThrow(ForbiddenException)
+    expect(send({ url: 'https://loja.test/', body: { not: 'a string' } })).toThrow(ForbiddenException)
+  })
+
+  it('reads method signatures and Data interface getters', () => {
+    const src = `<?php
+namespace Vendor\\Mod\\Api;
+use Magento\\Quote\\Api\\Data\\AddressInterface as Address;
+interface PayInterface {
+    /**
+     * Pays the cart
+     * @param int $cartId
+     * @param \\Magento\\Quote\\Api\\Data\\PaymentInterface $paymentMethod
+     * @param Address|null $billingAddress
+     * @return int
+     */
+    public function savePaymentInformation($cartId, $paymentMethod, Address $billingAddress = null);
+    /** @return string|null */
+    public function getCustomerEmail();
+    /** @return bool */
+    public function isDefaultShipping();
+    /** @return \\Magento\\Quote\\Api\\Data\\AddressExtensionInterface|null */
+    public function getExtensionAttributes();
+}`
+    const m = findMethod(src, 'savePaymentInformation')
+    expect(m?.summary).toBe('Pays the cart')
+    expect(m?.params.map((p) => [p.name, p.type])).toEqual([
+      ['cartId', 'int'],
+      ['paymentMethod', 'Magento\\Quote\\Api\\Data\\PaymentInterface'],
+      ['billingAddress', 'Magento\\Quote\\Api\\Data\\AddressInterface'],
+    ])
+    expect(dataGetters(src).map((g) => g.field)).toEqual(['customer_email', 'default_shipping'])
+    expect(fieldName('getRegionId')).toBe('region_id')
+    expect(fieldName('getIsActive')).toBe('is_active')
+    expect(fieldName('hasGiftMessage')).toBe('gift_message')
+  })
+})
+
+describe('Code index (Go to File / Find in Files)', () => {
+  const root = fakeMagento()
+  const plugin = path.join(root, 'app', 'code', 'Acme', 'Checkout', 'Plugin')
+  fs.mkdirSync(plugin, { recursive: true })
+  fs.writeFileSync(
+    path.join(plugin, 'QuotePlugin.php'),
+    '<?php\nnamespace Acme\\Checkout\\Plugin;\n\nfinal class QuotePlugin\n{\n    public function aroundPlace($subject, callable $proceed) { return $proceed(); }\n    // placeOrder replaced\n}\n',
+  )
+  fs.mkdirSync(path.join(root, 'vendor', 'magento'), { recursive: true })
+  fs.writeFileSync(path.join(root, 'vendor', 'magento', 'Big.php'), '<?php // aroundPlace in vendor')
+  const index = new CodeIndexService(new ReadOnlyFs())
+
+  it('lists project files without vendor/', () => {
+    const files = index.files(root)
+    expect(files).toContain('app/code/Acme/Checkout/Plugin/QuotePlugin.php')
+    expect(files.some((f) => f.startsWith('vendor/'))).toBe(false)
+  })
+
+  it('indexes PHP classes by FQCN', async () => {
+    expect(await index.classes(root)).toContainEqual({ fqcn: 'Acme\\Checkout\\Plugin\\QuotePlugin', path: 'app/code/Acme/Checkout/Plugin/QuotePlugin.php', kind: 'class' })
+  })
+
+  it('finds text with case, whole word, regex, scope and mask options', async () => {
+    expect((await index.find(root, { query: 'aroundplace' })).matches).toHaveLength(1)
+    expect((await index.find(root, { query: 'aroundplace', caseSensitive: true })).matches).toHaveLength(0)
+    expect((await index.find(root, { query: 'place', wholeWord: true })).matches).toHaveLength(0)
+    expect((await index.find(root, { query: 'around\\w+\\(', regex: true })).matches[0]).toMatchObject({ line: 6, col: 20 })
+    expect((await index.find(root, { query: 'aroundPlace', mask: '*.xml' })).matches).toHaveLength(0)
+    expect((await index.find(root, { query: 'aroundPlace', scope: 'vendor' })).matches.map((m) => m.file)).toEqual(['vendor/magento/Big.php'])
+  })
+
+  it('never searches credential files', async () => {
+    expect((await index.find(root, { query: 'secret' })).matches).toHaveLength(0)
+  })
+
+  it('rejects invalid regex as a rule violation', async () => {
+    await expect(index.find(root, { query: '(unclosed', regex: true })).rejects.toMatchObject({ rule: 'input.regex' })
   })
 })
 

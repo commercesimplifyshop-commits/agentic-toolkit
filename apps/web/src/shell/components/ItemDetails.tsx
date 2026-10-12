@@ -69,6 +69,11 @@ export function ItemDetails({ item, workspaceId }: { item: MapItem; workspaceId:
             )}
           </>
         )}
+        {(item.kind === 'rest' || item.kind === 'graphql') && (
+          <Link className="sf-btn small accent" to={`/w/${workspaceId}/api-client?route=${encodeURIComponent(item.id)}`}>
+            ➤ Testar no simulador
+          </Link>
+        )}
       </div>
     </div>
   )

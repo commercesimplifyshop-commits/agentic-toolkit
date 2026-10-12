@@ -89,7 +89,7 @@ export function AuditPage() {
             {rules?.actions.map((a) => (
               <tr key={a.id}>
                 <td className="sf-mono">{a.id}</td>
-                <td>{a.kind === 'read' ? <span className="sf-badge green">leitura</span> : <span className="sf-badge blue">dados StoreFlow</span>}</td>
+                <td>{a.kind === 'read' ? <span className="sf-badge green">leitura</span> : a.kind === 'external' ? <span className="sf-badge orange">requisição externa</span> : <span className="sf-badge blue">dados StoreFlow</span>}</td>
                 <td className="sf-mono sf-muted">{a.methods.join(', ')}</td>
                 <td>{a.validated ? '✓ próprio' : <span className="sf-faint">guarda global</span>}</td>
                 <td className="sf-muted" style={{ fontSize: 12.5 }}>

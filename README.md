@@ -11,11 +11,62 @@ Dashboard **somente leitura** para entender qualquer instalação **Magento 2 / 
 - **Debug de fluxo:** simula um pedido do início ao fim e mostra, em ordem de execução, cada plugin `before/around/after`, preference, evento e observer que roda, nativo e customizado.
 - **Fluxo 3D:** a loja em formato de jogo, com a simulação do pedido B2C nativo.
 - **Pergunte ao código:** IA (Claude Code local, API da Anthropic ou modelo local) que responde lendo o código, com ferramentas que só leem.
-- **Pontos de atenção, segurança, patches e explorador de código.**
+- **Explorador de código no estilo PhpStorm:** tema Darcula, abas, Find in Files, Go to File/Class, Search Everywhere e `Ctrl+clique` para ir à declaração, tudo somente leitura.
+- **Pontos de atenção, segurança e patches.**
 
 Feito para o engenheiro que chega num projeto sem contexto e precisa, em minutos, saber o que foi customizado, onde, e o que merece cuidado.
 
 ![Fluxo 3D](docs/simulacao.png)
+
+## Navegação de código (atalhos do PhpStorm)
+
+Disponíveis em qualquer tela da instalação:
+
+| Atalho | PhpStorm | O que faz |
+|---|---|---|
+| `Shift` `Shift` | Search Everywhere | Classes e arquivos juntos |
+| `Alt+N` | Go to Class (`Ctrl+N`) | Busca por nome de classe; camel case funciona (`QuPl` → QuotePlugin) e `\` busca pelo namespace |
+| `Alt+Shift+N` | Go to File (`Ctrl+Shift+N`) | Busca por nome de arquivo ou caminho; `Arquivo.php:30` abre na linha 30 |
+| `Ctrl+Shift+F` ou `Alt+F` | Find in Files | Busca no projeto com diferenciar maiúsculas (`Alt+C`), palavra inteira (`Alt+W`), regex (`Alt+X`), escopo e máscara de arquivo, com pré-visualização |
+| `Ctrl+F` / `Ctrl+G` | Find / Go to Line | Dentro do arquivo aberto |
+| `Ctrl+clique` | Go to Declaration | Abre a classe sob o cursor (resolve `use` e namespace); classes do core abrem no GitHub na tag da sua versão |
+
+O Chrome reserva `Ctrl+N` e `Ctrl+Shift+N` (nova janela e janela anônima), e nenhuma página consegue capturá-los. Por isso as variantes com `Alt`. Tudo isso é feito pela aplicação, com índice e busca locais, sem IA e sem custo. O código é colorido pelo CodeMirror 6 (PHP, phtml, XML, JS, LESS/CSS, JSON e YAML).
+
+## Simulador de API
+
+Em **Ferramentas & plugins → Simulador de API** (ou no botão "Testar no simulador" no detalhe de uma rota REST ou GraphQL) você testa os endpoints da instalação contra um ambiente seu, como no Postman:
+
+- **Campos já preenchidos**: método, caminho, parâmetros de caminho e query (`searchCriteria` nos `GET` de listagem). O body JSON é montado a partir da assinatura PHP do método de serviço e dos getters das Data Interfaces, com os nomes de campo que o Magento espera. Parâmetros que o `webapi.xml` preenche pelo token (ex.: `cartId` nas rotas `/mine`) ficam de fora.
+- **Autorização igual ao Postman**: um select com Sem autenticação, Bearer token, Admin (usuário e senha), Cliente (e-mail e senha) e Basic Auth. Admin e Cliente têm "Gerar token", que chama `/V1/integration/{admin|customer}/token` no ambiente e aplica o token. A autorização sugerida vem da ACL da rota.
+- **Resposta**: status, tempo, tamanho, body formatado e headers. "Copiar como cURL" mascara o token, a menos que você marque "incluir token real".
+
+O simulador só envia a requisição. Se o ambiente está de pé ou não é com você: quando ele não responde, aparece o motivo (conexão recusada, DNS, certificado). A URL base e o store code ficam salvos no navegador, por instalação. Senhas e tokens ficam só na memória da aba e nunca vão para disco nem para a auditoria, que registra apenas o método e a URL de destino. Antes de um `POST`/`PUT`/`DELETE` para um host que não parece local, o StoreFlow pede confirmação.
+
+## Documentação
+
+Em **Ferramentas & plugins → Documentação** o seu Claude Code escreve uma documentação estruturada a partir do código da instalação. Você escolhe o tipo e o assunto:
+
+| Tipo | Exemplo | O que a doc cobre |
+|---|---|---|
+| Módulo | `Vendor_Checkout` | Arquivos, APIs, plugins, observers, configuração e dados do módulo |
+| Funcionalidade | estorno parcial de pedido | Como funciona de ponta a ponta, em todos os módulos envolvidos |
+| Fluxo | do carrinho até o pedido | A ordem real de execução: entrada, serviços, plugins, observers, persistência |
+| Tema | integrações com o ERP | Todos os pontos do código ligados ao assunto e como se conectam |
+
+Toda doc segue a mesma estrutura: resumo, visão geral, onde está no código, como funciona, pontos de extensão, configuração, dados, dependências, riscos, como testar e referências com `arquivo:linha`. Durante a geração aparece o que o Claude está lendo; no fim, a lista de arquivos consultados abre no explorador de código.
+
+- **Preview no Claude Docs**: ao terminar, a doc é publicada automaticamente no Claude Docs da sua conta claude.ai (privada até você compartilhar) e o link aparece no topo. "Regerar" abre o formulário preenchido para você ajustar e atualiza o mesmo documento.
+- **Cancelar**: durante a geração ou a publicação, "Cancelar" interrompe o Claude Code.
+- **Word e PDF**: gerados localmente pelo StoreFlow, sem depender da publicação.
+
+Precisa do Claude Code instalado e logado (o mesmo de "Pergunte ao código"). A publicação usa o conector Claude Docs da sua conta.
+
+## Quadro branco
+
+Em **Ferramentas & plugins → Quadro branco** você rascunha fluxos, arquiteturas e ideias com o [Excalidraw](https://github.com/excalidraw/excalidraw) embutido: desenho livre, formas, setas, texto, imagens coladas, biblioteca de formas e exportação em PNG, SVG ou `.excalidraw`.
+
+Cada instalação tem os seus quadros, salvos automaticamente em `~/.storeflow` (nunca no repositório). Fontes e traduções do Excalidraw são servidas pelo próprio StoreFlow, então o quadro funciona sem internet.
 
 ## Regra crítica: somente leitura
 
@@ -28,6 +79,8 @@ O StoreFlow **nunca escreve no código Magento**, e isso é garantido por códig
 | Credenciais nunca lidas | `app/etc/env.php`, `auth.json`, `.env`, chaves e `.git/config` são listados, mas o conteúdo é recusado (inclusive para a IA). |
 | Escrita só no diretório de dados | Mapas, anotações, clones e uploads ficam em `~/.storeflow`. Destino dentro de uma instalação Magento é bloqueado. |
 | Comandos com allowlist | Git só lê ou clona no diretório de dados (push desativado no clone). Só os scripts do analyzer rodam. O Claude Code roda com `--tools Read,Grep,Glob`, sem MCP e ignorando o `.claude/` do repositório Magento. |
+| Simulador de API não toca no repositório | As requisições vão só para a URL que você informou (http/https, sem credenciais na URL, nunca para o próprio StoreFlow), classificadas como "requisição externa" na auditoria. |
+| Documentação em duas etapas isoladas | Quem escreve é o Claude Code com `--tools Read,Grep,Glob`, sem MCP. Quem publica é outra execução, sem nenhuma ferramenta de leitura de código, rodando numa pasta do diretório de dados e liberada só para o conector Claude Docs (sem excluir). Ela recebe apenas o Markdown pronto. |
 | Auditoria e autoteste | Toda ação (permitida ou bloqueada) vai para o log. A tela "Regras & auditoria" roda um autoteste de cada proteção. |
 
 Os testes automatizados (`npm test`) cobrem essas regras.

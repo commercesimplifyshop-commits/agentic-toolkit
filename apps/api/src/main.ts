@@ -12,7 +12,8 @@ async function bootstrap() {
   const { AppModule } = await import('./app.module')
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: true })
   app.setGlobalPrefix('api')
-  app.useBodyParser('json', { limit: '5mb' })
+  // Whiteboards may carry pasted images (base64)
+  app.useBodyParser('json', { limit: '30mb' })
 
   // In production the API also serves the built SPA (apps/web/dist)
   const web = path.resolve(__dirname, '..', '..', 'web', 'dist')

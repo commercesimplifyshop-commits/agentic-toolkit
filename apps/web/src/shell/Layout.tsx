@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { IdeLayer } from './ide/IdeLayer'
 import { initials, useShell } from './store'
 
 interface NavItem {
@@ -29,6 +30,14 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: 'Ferramentas & plugins',
+    items: [
+      { to: 'api-client', label: 'Simulador de API', icon: '➤' },
+      { to: 'docs', label: 'Documentação', icon: '▤' },
+      { to: 'board', label: 'Quadro branco', icon: '✎' },
+    ],
+  },
+  {
     title: 'Fluxo de pedido',
     items: [
       { to: 'flow', label: 'Fluxo 3D', icon: '◈' },
@@ -50,6 +59,17 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
 
 const TITLES: Record<string, string> = Object.fromEntries(SECTIONS.flatMap((s) => s.items.map((i) => [i.to, i.label])))
 
+const COLLAPSE_KEY = 'storeflow.sidebarCollapsed'
+
+/** Per-viewer UI preference; storage may be unavailable (private mode), so never rely on it. */
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export function Layout() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -57,6 +77,17 @@ export function Layout() {
   const { workspaces, loaded, refreshWorkspaces, loadOverview } = useShell()
   const overview = useShell((s) => s.overviews[id])
   const ws = workspaces.find((w) => w.id === id)
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1')
+      } catch {
+        // preference just won't persist
+      }
+      return !c
+    })
 
   useEffect(() => {
     if (!loaded) refreshWorkspaces()
@@ -71,7 +102,7 @@ export function Layout() {
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
   const title = TITLES[sub] ?? (sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
-  const fullBleed = ['flow', 'debug', 'ask', 'code'].includes(sub)
+  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board'].includes(sub)
 
   return (
     <div className="sf-root">
@@ -93,12 +124,17 @@ export function Layout() {
         </Link>
       </aside>
 
-      <nav className="sf-sidebar">
+      <nav className={`sf-sidebar ${collapsed ? 'collapsed' : ''}`}>
         <div className="sf-side-head">
-          <strong>{ws?.name ?? '…'}</strong>
-          <span>
-            {ws?.edition} {ws?.version}
-          </span>
+          <div className="sf-side-title">
+            <strong>{ws?.name ?? '…'}</strong>
+            <span>
+              {ws?.edition} {ws?.version}
+            </span>
+          </div>
+          <button className="sf-collapse" onClick={toggleCollapsed} title={collapsed ? 'Expandir menu' : 'Recolher menu (só ícones)'} aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}>
+            {collapsed ? '»' : '«'}
+          </button>
         </div>
         <div className="sf-side-scroll">
           {SECTIONS.map((section, i) => (
@@ -107,7 +143,13 @@ export function Layout() {
               {section.items.map((item) => {
                 const count = overview && item.count?.(overview)
                 return (
-                  <NavLink key={item.to} to={item.to ? `/w/${id}/${item.to}` : `/w/${id}`} end={!item.to} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
+                  <NavLink
+                    key={item.to}
+                    to={item.to ? `/w/${id}/${item.to}` : `/w/${id}`}
+                    end={!item.to}
+                    title={collapsed ? `${item.label}${count && count.value > 0 ? ` (${count.value})` : ''}` : undefined}
+                    className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}
+                  >
                     <span className="sf-nav-icon">{item.icon}</span>
                     <span className="sf-nav-label">{item.label}</span>
                     {count && count.value > 0 && <span className={`sf-nav-count ${count.tone ?? ''}`}>{count.value}</span>}
@@ -118,16 +160,16 @@ export function Layout() {
           ))}
         </div>
         <div className="sf-side-foot">
-          <NavLink to={`/w/${id}/audit`} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
+          <NavLink to={`/w/${id}/audit`} title={collapsed ? 'Regras & auditoria' : undefined} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
             <span className="sf-nav-icon">⛬</span>
             <span className="sf-nav-label">Regras & auditoria</span>
           </NavLink>
-          <NavLink to={`/w/${id}/settings`} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
+          <NavLink to={`/w/${id}/settings`} title={collapsed ? 'Configurações' : undefined} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
             <span className="sf-nav-icon">⚙</span>
             <span className="sf-nav-label">Configurações</span>
           </NavLink>
           <div className="sf-readonly-pill" title="O StoreFlow nunca escreve no código Magento">
-            <span className="dot" /> Somente leitura
+            <span className="dot" /> <span className="sf-nav-label">Somente leitura</span>
           </div>
         </div>
       </nav>
@@ -142,6 +184,8 @@ export function Layout() {
           {ws?.status === 'analyzed' && <Outlet />}
         </div>
       </main>
+      {/* PhpStorm navigation (Shift Shift, Alt+N, Alt+Shift+N, Ctrl+Shift+F) on every page */}
+      {ws?.status === 'analyzed' && <IdeLayer workspaceId={id} />}
     </div>
   )
 }

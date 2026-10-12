@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common'
 import fs from 'node:fs'
 import path from 'node:path'
 import { ANALYZER_DIR, DIRS } from '../config/paths'
+import { CodeIndexService } from '../files/code-index.service'
 import { JobsService } from '../jobs/jobs.service'
 import { CommandRunner } from '../readonly/command-runner.service'
 import { assertWritableTarget } from '../readonly/path-guard'
@@ -17,6 +18,7 @@ export class AnalysisService {
     private readonly runner: CommandRunner,
     private readonly overview: OverviewService,
     private readonly maps: MapStore,
+    private readonly codeIndex: CodeIndexService,
   ) {}
 
   /** Sparse checkout of the public core at the installation's tag (shared across workspaces). */
@@ -46,6 +48,8 @@ export class AnalysisService {
     ])
     this.workspaces.update(ws, { status: 'analyzing', jobId: job.id })
     const root = ws.magentoRoot
+    // the code may have changed (sync, local edits): rebuild the search index lazily
+    this.codeIndex.invalidate(root)
     const out = this.maps.dir(id)
     assertWritableTarget(out, [root])
 

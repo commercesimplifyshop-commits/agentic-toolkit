@@ -14,6 +14,8 @@ export interface RunOptions {
   /** Real binary to spawn when the validated program name is a logical one (e.g. claude → claude.exe path) */
   executable?: string
   stdin?: string
+  /** Stops the process (e.g. the user cancelled a documentation run) */
+  signal?: AbortSignal
 }
 
 export interface RunResult {
@@ -31,6 +33,17 @@ const ANALYZER_SCRIPTS = new Set(['extract.mjs', 'native-reference.mjs', 'contex
 /** Claude Code may only use tools that read */
 export const CLAUDE_READONLY_TOOLS = ['Read', 'Grep', 'Glob']
 export const CLAUDE_DENIED_TOOLS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch']
+
+/**
+ * Publishing a finished doc to Claude Docs is a separate run with no access to
+ * code at all: no Read/Grep/Glob, cwd inside the data dir, and only the Claude
+ * Docs connector (create/fill/read, never delete) plus the Artifact tool that
+ * creates the doc's page from the Docs type.
+ */
+export const CLAUDE_DOCS_BUILTINS = ['Artifact', 'ToolSearch']
+const DOCS_MCP = 'mcp__claude_ai_Claude_Docs__'
+export const CLAUDE_DOCS_TOOLS = [...CLAUDE_DOCS_BUILTINS, ...['guide', 'create', 'batch', 'update', 'read', 'query'].map((t) => DOCS_MCP + t)]
+export const CLAUDE_DOCS_DENIED = [...CLAUDE_DENIED_TOOLS, 'Read', 'Grep', 'Glob', 'PowerShell', 'Agent', `${DOCS_MCP}delete`]
 
 /**
  * Validates and runs external programs. Every command is checked against an
@@ -83,9 +96,29 @@ export class CommandRunner {
         })
         return
       }
+      case 'claude-docs':
+        return this.validateClaudeDocs(args, opts)
       default:
         throw new ReadOnlyViolation(`Programa não permitido: ${cmd}`, 'cmd.not-allowed')
     }
+  }
+
+  private validateClaudeDocs(args: string[], opts: RunOptions) {
+    const listAfter = (flag: string) => {
+      const i = args.indexOf(flag)
+      return i < 0 ? null : (args[i + 1] ?? '').split(/[ ,]+/).filter(Boolean)
+    }
+    const tools = listAfter('--tools')
+    if (!tools || tools.some((t) => !CLAUDE_DOCS_BUILTINS.includes(t))) throw new ReadOnlyViolation(`Publicação no Claude Docs só pode usar ${CLAUDE_DOCS_BUILTINS.join(', ')}`, 'cmd.claude-docs-tools')
+    const allowed = listAfter('--allowedTools')
+    if (!allowed || allowed.some((t) => !CLAUDE_DOCS_TOOLS.includes(t))) throw new ReadOnlyViolation('Publicação no Claude Docs só pode liberar o conector do Claude Docs', 'cmd.claude-docs-tools')
+    const denied = listAfter('--disallowedTools') ?? []
+    if (CLAUDE_DOCS_DENIED.some((t) => !denied.includes(t))) throw new ReadOnlyViolation('Publicação no Claude Docs precisa negar leitura de código, escrita e exclusão', 'cmd.claude-docs-tools')
+    if (listAfter('--setting-sources')?.join(',') !== 'user') throw new ReadOnlyViolation('Claude Code precisa de --setting-sources user', 'cmd.claude-settings')
+    if (args.some((a) => /dangerously|bypassPermissions|acceptEdits|^--add-dir$/.test(a))) throw new ReadOnlyViolation('Publicação no Claude Docs não pode ampliar acesso nem pular permissões', 'cmd.claude-bypass')
+    // No code in reach: it runs from a folder inside StoreFlow's data dir
+    if (!opts.cwd) throw new ReadOnlyViolation('Publicação no Claude Docs precisa de um diretório de trabalho', 'cmd.claude-docs-cwd')
+    assertWritableTarget(opts.cwd, opts.protectedRoots ?? [])
   }
 
   private validateGit(args: string[], opts: RunOptions) {
@@ -127,7 +160,7 @@ export class CommandRunner {
   run(cmd: string, args: string[], opts: RunOptions = {}): Promise<RunResult> {
     this.validate(cmd, args, opts)
     return new Promise((resolve, reject) => {
-      const child = spawn(opts.executable ?? (cmd === 'node' ? process.execPath : cmd), args, {
+      const child = spawn(opts.executable ?? (cmd === 'node' ? process.execPath : cmd === 'claude-docs' ? 'claude' : cmd), args, {
         cwd: opts.cwd,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...opts.env },
         shell: false,
@@ -138,20 +171,33 @@ export class CommandRunner {
       let stdout = ''
       let stderr = ''
       const timer = setTimeout(() => child.kill(), opts.timeoutMs ?? 10 * 60_000)
+      const abort = () => child.kill()
+      if (opts.signal?.aborted) abort()
+      opts.signal?.addEventListener('abort', abort, { once: true })
+      // A line can arrive split across chunks: only whole lines go to onLine
+      const partial = { out: '', err: '' }
       const feed = (chunk: Buffer, sink: 'out' | 'err') => {
         const text = chunk.toString()
         if (sink === 'out') stdout += text
         else stderr += text
-        if (opts.onLine) for (const line of text.split(/\r?\n/)) if (line.trim()) opts.onLine(line)
+        if (!opts.onLine) return
+        const lines = (partial[sink] + text).split(/\r?\n/)
+        partial[sink] = lines.pop() ?? ''
+        for (const line of lines) if (line.trim()) opts.onLine(line)
       }
       child.stdout.on('data', (c) => feed(c, 'out'))
       child.stderr.on('data', (c) => feed(c, 'err'))
-      child.on('error', (err) => {
+      const done = () => {
         clearTimeout(timer)
+        opts.signal?.removeEventListener('abort', abort)
+      }
+      child.on('error', (err) => {
+        done()
         reject(err)
       })
       child.on('close', (code) => {
-        clearTimeout(timer)
+        done()
+        for (const rest of [partial.out, partial.err]) if (opts.onLine && rest.trim()) opts.onLine(rest)
         resolve({ code: code ?? -1, stdout, stderr })
       })
     })
