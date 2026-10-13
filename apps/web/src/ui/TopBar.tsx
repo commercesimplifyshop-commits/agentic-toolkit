@@ -32,7 +32,7 @@ export function TopBar({ sourceLabel, onReset }: { sourceLabel: string; onReset:
           </svg>
         </div>
         <div>
-          <strong>StoreFlow 3D</strong>
+          <strong>Agentic Toolkit 3D</strong>
           <span>Magento 2 · Fluxo de pedido B2C</span>
         </div>
       </div>

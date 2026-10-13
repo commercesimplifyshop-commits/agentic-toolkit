@@ -1,8 +1,8 @@
 {
-  "name": "@storeflow/api",
+  "name": "@agentic-toolkit/api",
   "private": true,
   "version": "0.2.0",
-  "description": "Backend somente leitura do StoreFlow: workspaces Magento, análise estática, auditoria e IA",
+  "description": "Backend somente leitura do Agentic Toolkit: workspaces Magento, análise estática, auditoria e IA",
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
@@ -14,7 +14,7 @@
     "@nestjs/common": "10.4.15",
     "@nestjs/core": "10.4.15",
     "@nestjs/platform-express": "10.4.15",
-    "@storeflow/analyzer": "0.2.0",
+    "@agentic-toolkit/analyzer": "0.2.0",
     "docx": "9.0.3",
     "marked": "14.1.4",
     "multer": "1.4.5-lts.1",

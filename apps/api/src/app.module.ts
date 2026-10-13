@@ -7,6 +7,20 @@ import { ApiClientController } from './apiclient/apiclient.controller'
 import { ApiClientService } from './apiclient/apiclient.service'
 import { BoardsController } from './boards/boards.controller'
 import { BoardsService } from './boards/boards.service'
+import { DiagramGenerationController } from './diagrams/diagram-generation.controller'
+import { DiagramGeneratorService } from './diagrams/diagram-generator.service'
+import { DiagramsController } from './diagrams/diagrams.controller'
+import { DiagramsService } from './diagrams/diagrams.service'
+import { OpenSpecController } from './openspec/openspec.controller'
+import { OpenSpecService } from './openspec/openspec.service'
+import { OpenSpecExploreController } from './openspec/openspec-explore.controller'
+import { OpenSpecExploreService } from './openspec/openspec-explore.service'
+import { OpenSpecAuthoringController } from './openspec/openspec-authoring.controller'
+import { OpenSpecAuthoringService } from './openspec/openspec-authoring.service'
+import { LinksController } from './links/links.controller'
+import { LinksService } from './links/links.service'
+import { LinksAssistService } from './links/links-assist.service'
+import { RepoWriter } from './readonly/repo-writer.service'
 import { DocsController } from './docs/docs.controller'
 import { DocsService } from './docs/docs.service'
 import { AnalysisService } from './analysis/analysis.service'
@@ -28,7 +42,7 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
@@ -49,6 +63,14 @@ import { ZipService } from './workspaces/zip.service'
     ApiClientService,
     DocsService,
     BoardsService,
+    DiagramsService,
+    DiagramGeneratorService,
+    OpenSpecService,
+    OpenSpecAuthoringService,
+    OpenSpecExploreService,
+    RepoWriter,
+    LinksService,
+    LinksAssistService,
   ],
 })
 export class AppModule {}

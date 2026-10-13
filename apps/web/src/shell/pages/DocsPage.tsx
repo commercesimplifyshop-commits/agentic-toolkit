@@ -255,7 +255,7 @@ function DocView({ workspaceId, docId, onChanged, onDeleted, onRegenerate }: { w
     act(() => api.post(`/workspaces/${workspaceId}/docs/${docId}/cancel`))
   }
   const remove = () => {
-    if (!confirm(`Remover "${doc.title}" do StoreFlow?${doc.claudeDocs?.url ? '\n\nO documento no Claude Docs continua lá.' : ''}`)) return
+    if (!confirm(`Remover "${doc.title}" do Agentic Toolkit?${doc.claudeDocs?.url ? '\n\nO documento no Claude Docs continua lá.' : ''}`)) return
     api.del(`/workspaces/${workspaceId}/docs/${docId}`).then(onDeleted, (e) => setError(e.message))
   }
   const exportUrl = (format: 'docx' | 'pdf') => `/api/workspaces/${workspaceId}/docs/${docId}/export?format=${format}`

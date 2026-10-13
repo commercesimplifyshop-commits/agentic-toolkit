@@ -19,7 +19,7 @@ export interface Workspace {
   id: string
   name: string
   source: WorkspaceSource
-  /** Where the code lives: the local folder itself, or StoreFlow's clone/extraction */
+  /** Where the code lives: the local folder itself, or Agentic Toolkit's clone/extraction */
   checkoutDir: string
   magentoRoot?: string
   edition?: string
@@ -242,7 +242,7 @@ export class WorkspacesService {
     return ws
   }
 
-  /** Removes StoreFlow's own copies. A local source folder is never touched. */
+  /** Removes Agentic Toolkit's own copies. A local source folder is never touched. */
   remove(id: string) {
     const ws = this.get(id)
     const own = [path.join(DIRS.workspaces, id)]

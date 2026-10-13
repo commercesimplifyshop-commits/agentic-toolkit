@@ -80,7 +80,7 @@ const EMPTY_REQUEST: RequestState = {
   acl: [],
 }
 
-const envKey = (id: string) => `storeflow.apiEnv.${id}`
+const envKey = (id: string) => `agentic-toolkit.apiEnv.${id}`
 
 /** Base URL / store are harmless conveniences kept per browser; credentials never are. */
 function loadEnv(id: string): Environment {

@@ -16,6 +16,8 @@ export interface Job {
   steps: JobStep[]
   log: string[]
   error?: string
+  /** Output of the job when it finishes (e.g. the id of the created document) */
+  result?: Record<string, unknown>
   startedAt: string
   finishedAt?: string
 }

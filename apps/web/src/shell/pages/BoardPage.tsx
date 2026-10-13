@@ -5,6 +5,7 @@ import type { AppState, BinaryFiles, ExcalidrawInitialDataState } from '@excalid
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
+import { UsedBy } from '../links/ToolLinks'
 
 interface BoardMeta {
   id: string
@@ -82,11 +83,12 @@ export function BoardPage() {
           {boards?.length === 0 && <div className="sf-faint" style={{ fontSize: 12.5, padding: '14px 4px' }}>Nenhum quadro ainda. Crie um para rascunhar fluxos, arquiteturas e ideias.</div>}
         </div>
         <p className="sf-faint" style={{ fontSize: 11.5, margin: 0 }}>
-          Os quadros ficam salvos no StoreFlow (por instalação), nunca no repositório.
+          Os quadros ficam salvos no Agentic Toolkit (por instalação), nunca no repositório.
         </p>
       </aside>
       <section className="sf-board-main">
         {error && <div className="sf-callout red" style={{ margin: 12 }}>{error}</div>}
+        {boardId && <div style={{ padding: '6px 12px' }}><UsedBy workspaceId={id} kind="board" refId={boardId} /></div>}
         {boardId ? (
           <BoardEditor key={boardId} workspaceId={id} boardId={boardId} onSaved={refresh} onDeleted={() => (setParams({}), refresh())} />
         ) : (

@@ -34,7 +34,7 @@ export function RisksPage() {
         <Link to={`/w/${id}/ask`} style={{ textDecoration: 'underline' }}>
           Pergunte ao código
         </Link>{' '}
-        ou rode a skill <code>/magento-map</code> no Claude Code dentro do repositório do StoreFlow (ela grava as anotações no diretório de dados).
+        ou rode a skill <code>/magento-map</code> no Claude Code dentro do repositório do Agentic Toolkit (ela grava as anotações no diretório de dados).
       </div>
 
       {o && o.highlights.filter((h) => h.level === 'critical').length > 0 && (

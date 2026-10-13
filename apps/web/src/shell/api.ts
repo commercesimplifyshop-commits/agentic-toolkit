@@ -1,4 +1,4 @@
-/** Thin client for the StoreFlow API (proxied at /api by Vite in dev). */
+/** Thin client for the Agentic Toolkit API (proxied at /api by Vite in dev). */
 
 export class ApiError extends Error {
   constructor(
@@ -19,8 +19,8 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
-    // The browser only says "Failed to fetch": the StoreFlow server is down or restarting
-    throw new ApiError('Sem conexão com o servidor do StoreFlow. Ele foi encerrado ou está reiniciando; tente de novo em alguns segundos.', 0)
+    // The browser only says "Failed to fetch": the Agentic Toolkit server is down or restarting
+    throw new ApiError('Sem conexão com o servidor do Agentic Toolkit. Ele foi encerrado ou está reiniciando; tente de novo em alguns segundos.', 0)
   }
   const text = await res.text()
   const data = text ? JSON.parse(text) : null
@@ -85,6 +85,8 @@ export interface Job {
   steps: { id: string; label: string; status: 'pending' | 'running' | 'done' | 'error' | 'skipped'; detail?: string }[]
   log: string[]
   error?: string
+  /** Output when finished (e.g. the id of the created document or diagram) */
+  result?: Record<string, unknown>
 }
 
 export interface Highlight {

@@ -41,7 +41,7 @@ export function SecurityPage() {
 
         <div className="sf-card">
           <h2>Arquivos sensíveis</h2>
-          <span className="sub">Presentes no código; o StoreFlow nunca lê o conteúdo</span>
+          <span className="sub">Presentes no código; o Agentic Toolkit nunca lê o conteúdo</span>
           {o.security.sensitiveFiles.map((f) => (
             <Row key={f.file} label={f.file} value={f.tracked === true ? 'versionado no git!' : f.tracked === false ? 'fora do git' : 'presente (sem git para checar)'} tone={f.tracked ? 'red' : f.tracked === null ? 'yellow' : 'green'} />
           ))}

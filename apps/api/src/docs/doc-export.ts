@@ -4,7 +4,7 @@ import PdfPrinter from 'pdfmake'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 
 /**
- * Markdown → Word / PDF, generated locally from the doc saved in StoreFlow's data
+ * Markdown → Word / PDF, generated locally from the doc saved in Agentic Toolkit's data
  * dir. Works offline and with any AI provider; nothing is sent anywhere.
  */
 
@@ -174,7 +174,7 @@ export async function toDocx(markdown: string, meta: { title: string; subtitle: 
   const bulletLevels = [0, 1, 2, 3, 4].map((level) => ({ level, format: LevelFormat.BULLET, text: ['•', '◦', '▪', '•', '◦'][level], alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 360 * (level + 1), hanging: 260 } } } }))
   const orderedLevels = [0, 1, 2, 3, 4].map((level) => ({ level, format: LevelFormat.DECIMAL, text: `%${level + 1}.`, alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 360 * (level + 1), hanging: 300 } } } }))
   const doc = new Document({
-    creator: 'StoreFlow',
+    creator: 'Agentic Toolkit',
     title: meta.title,
     description: meta.subtitle,
     styles: {
@@ -289,7 +289,7 @@ function pdfBlocks(tokens: Token[]): Content[] {
 
 export function toPdf(markdown: string, meta: { title: string; subtitle: string }): Promise<Buffer> {
   const def: TDocumentDefinitions = {
-    info: { title: meta.title, creator: 'StoreFlow' },
+    info: { title: meta.title, creator: 'Agentic Toolkit' },
     pageSize: 'A4',
     pageMargins: [40, 48, 40, 52],
     defaultStyle: { font: 'Roboto', fontSize: 10, lineHeight: 1.3, color: '#1f2937' },

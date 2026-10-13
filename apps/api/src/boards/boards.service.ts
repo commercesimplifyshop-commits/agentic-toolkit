@@ -19,7 +19,7 @@ export interface Board {
   scene: BoardScene
 }
 
-/** Whiteboards (Excalidraw scenes) kept in StoreFlow's data dir, per installation. */
+/** Whiteboards (Excalidraw scenes) kept in Agentic Toolkit's data dir, per installation. */
 @Injectable()
 export class BoardsService {
   constructor(private readonly workspaces: WorkspacesService) {}

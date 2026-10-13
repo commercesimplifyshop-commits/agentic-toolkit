@@ -235,7 +235,7 @@ export class ApiClientService {
         target,
         {
           method: input.method,
-          headers: { 'User-Agent': 'StoreFlow-API-Simulator', ...input.headers },
+          headers: { 'User-Agent': 'Agentic-Toolkit-API-Simulator', ...input.headers },
           timeout: 60_000,
           ...(target.protocol === 'https:' && input.insecure ? { agent: new https.Agent({ rejectUnauthorized: false }) } : {}),
         },

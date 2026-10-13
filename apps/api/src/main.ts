@@ -26,7 +26,7 @@ async function bootstrap() {
   }
 
   await app.listen(PORT, HOST)
-  const log = new Logger('StoreFlow')
+  const log = new Logger('Agentic Toolkit')
   log.log(`API em http://${HOST}:${PORT}/api · dados em ${DATA_DIR}`)
   if (HOST !== '127.0.0.1' && HOST !== 'localhost') log.warn('Servidor exposto fora do localhost: ele lê código-fonte, restrinja o acesso.')
 }

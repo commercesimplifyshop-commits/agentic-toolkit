@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { CommandRunner } from '../readonly/command-runner.service'
 
 /**
- * How StoreFlow authenticates against a private repository. Secrets are used
+ * How Agentic Toolkit authenticates against a private repository. Secrets are used
  * only for the clone/fetch they were given for and are never written to disk:
  * tokens travel in an HTTP header passed through git's env config (not argv,
  * not the URL, not .git/config).
@@ -71,8 +71,8 @@ export class GitService {
     args.push('--progress', sanitizeUrl(url), dest)
     const res = await this.runner.run('git', args, { env: this.authEnv(url, opts.auth), onLine: opts.onLine, timeoutMs: 30 * 60_000 })
     if (res.code !== 0) throw new Error(this.explain(res.stderr))
-    // Belt and braces: StoreFlow's clone can never push back
-    await this.runner.run('git', ['-C', dest, 'remote', 'set-url', '--push', 'origin', 'PUSH_DISABLED_BY_STOREFLOW'])
+    // Belt and braces: Agentic Toolkit's clone can never push back
+    await this.runner.run('git', ['-C', dest, 'remote', 'set-url', '--push', 'origin', 'PUSH_DISABLED_BY_AGENTIC_TOOLKIT'])
   }
 
   async fetch(dest: string, url: string, auth: GitAuth, branch?: string) {

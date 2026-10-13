@@ -2,7 +2,7 @@ node_modules
 dist
 *.tsbuildinfo
 # Installation data (client code, maps, annotations) never goes to git
-.storeflow/
+.agentic-toolkit/
 public/maps/
 reference/
 apps/web/public/excalidraw-assets/

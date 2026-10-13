@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Scans a Magento 2 installation and writes a StoreFlow map:
+// Scans a Magento 2 installation and writes a Agentic Toolkit map:
 // every REST route, GraphQL operation, observer, plugin, preference, route,
 // cron job and queue topic, classified into a zone of the purchase flow.
 //

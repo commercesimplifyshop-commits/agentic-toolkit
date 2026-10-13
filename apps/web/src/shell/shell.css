@@ -1,4 +1,4 @@
-/* StoreFlow dashboard shell. All classes are prefixed sf- so they never collide
+/* Agentic Toolkit dashboard shell. All classes are prefixed sf- so they never collide
    with the 3D flow feature's own stylesheet. */
 
 :root {
@@ -506,4 +506,261 @@
   .sf-board-list { max-height: 200px; border-right: 0; border-bottom: 1px solid var(--sf-border); }
   .sf-board-canvas { min-height: 70vh; }
   .sf-board-name { max-width: none; flex: 1; }
+}
+
+/* ---- Architecture diagrams (Mermaid) -------------------------------------------------- */
+.sf-diagrams { display: grid; grid-template-columns: 250px 1fr; height: 100%; min-height: 0; }
+.sf-diagram-templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.sf-diagram-templates button { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; text-align: left; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--sf-border); background: var(--sf-panel-2); min-height: 96px; }
+.sf-diagram-templates button span:last-child { color: var(--sf-muted); font-size: 12px; line-height: 1.45; }
+.sf-diagram-templates button:hover { border-color: var(--sf-accent); }
+.sf-diagram-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px, 0.9fr) 1.1fr; }
+.sf-diagram-code { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--sf-border); }
+.sf-diagram-code .sf-codemirror { flex: 1; min-height: 0; }
+.sf-diagram-code .cm-editor { height: 100%; font-size: 12.5px; }
+.sf-diagram-preview { min-height: 0; min-width: 0; display: flex; flex-direction: column; background: #0a0a0b; }
+.sf-diagram-zoom { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--sf-border); background: var(--sf-panel); }
+.sf-diagram-error { margin: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid rgba(239, 68, 68, 0.35); background: var(--sf-red-soft); font-size: 12.5px; display: flex; flex-direction: column; gap: 4px; }
+.sf-diagram-error pre { margin: 0; white-space: pre-wrap; font-family: var(--sf-mono); font-size: 12px; color: #fecaca; }
+.sf-diagram-canvas { flex: 1; min-height: 0; overflow: auto; padding: 16px; }
+.sf-diagram-canvas svg { max-width: none; height: auto; }
+@media (max-width: 900px) {
+  .sf-diagrams { grid-template-columns: 1fr; height: auto; }
+  .sf-diagram-split { grid-template-columns: 1fr; grid-template-rows: 340px 1fr; }
+  .sf-diagram-code { border-right: 0; border-bottom: 1px solid var(--sf-border); }
+}
+
+/* ---- Visual diagram editor (React Flow) ------------------------------------------------ */
+.sf-canvas { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sf-canvas-tools { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--sf-border); background: var(--sf-panel); flex-wrap: wrap; }
+.sf-canvas-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr) 270px; }
+.sf-canvas-palette { overflow-y: auto; padding: 12px; border-right: 1px solid var(--sf-border); background: var(--sf-panel); display: flex; flex-direction: column; gap: 6px; }
+.sf-canvas-palette button { display: flex; align-items: flex-start; gap: 10px; padding: 8px; border-radius: 9px; border: 1px solid var(--sf-border); background: var(--sf-panel-2); text-align: left; cursor: grab; }
+.sf-canvas-palette button:hover { border-color: var(--sf-accent); }
+.sf-canvas-palette button strong { display: block; font-size: 12.5px; }
+.sf-canvas-palette button small { display: block; color: var(--sf-faint); font-size: 11px; line-height: 1.4; margin-top: 2px; }
+.sf-el-chip { width: 14px; height: 14px; border-radius: 4px; flex: none; margin-top: 2px; background: #3f3f46; }
+.sf-canvas-stage { position: relative; min-width: 0; min-height: 0; background: #0a0a0b; }
+.sf-canvas-stage .react-flow { background: #0a0a0b; }
+.sf-canvas-props { overflow-y: auto; border-left: 1px solid var(--sf-border); background: var(--sf-panel); }
+.sf-props { padding: 12px; display: flex; flex-direction: column; }
+.sf-props .sf-field { margin-bottom: 10px; }
+.sf-props .sf-field span { font-size: 11.5px; font-weight: 600; color: #c9c9cf; }
+.sf-props select.sf-input { appearance: auto; }
+.sf-canvas-code { border-top: 1px solid var(--sf-border); background: var(--sf-panel); padding: 10px 12px; max-height: 240px; overflow: auto; }
+.sf-canvas-code pre { margin: 0; white-space: pre; font-size: 12px; color: #c9c9cf; }
+/* Elements */
+.sf-el { width: 200px; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; background: #18181b; border: 1px solid #3f3f46; border-left: 4px solid #71717a; color: #e4e4e7; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); font-size: 12.5px; }
+.sf-el.on { outline: 2px solid var(--sf-accent); outline-offset: 2px; }
+.sf-el-type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-faint); }
+.sf-el-title { font-weight: 600; margin-top: 2px; line-height: 1.3; overflow-wrap: anywhere; }
+.sf-el-tech { color: var(--sf-muted); font-size: 11px; margin-top: 2px; }
+.sf-el-desc { color: #a1a1aa; font-size: 11.5px; margin-top: 6px; line-height: 1.4; overflow-wrap: anywhere; }
+.sf-el-person { border-left-color: #60a5fa; }
+.sf-el-system { border-left-color: var(--sf-accent); }
+.sf-el-external { border-left-color: #71717a; border-style: dashed; border-left-style: solid; background: #141416; }
+.sf-el-container { border-left-color: #22c55e; }
+.sf-el-db { border-left-color: #eab308; border-radius: 14px 14px 10px 10px; }
+.sf-el-queue { border-left-color: var(--sf-purple); border-radius: 18px; }
+.sf-el-start, .sf-el-end { border-radius: 999px; border-left-color: #22c55e; text-align: center; }
+.sf-el-decision { border-left-color: #eab308; border-style: dashed; }
+.sf-el-process { border-left-color: #60a5fa; }
+.sf-el-database { border-left-color: #eab308; border-radius: 14px 14px 10px 10px; }
+.sf-el-boundary { width: 100%; height: 100%; box-sizing: border-box; border: 1.5px dashed #52525b; border-radius: 14px; background: rgba(255, 255, 255, 0.025); }
+.sf-el-boundary.on { border-color: var(--sf-accent); }
+.sf-el-boundary-title { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; font-weight: 600; color: #d4d4d8; font-size: 12.5px; }
+.sf-el-boundary-title span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-faint); font-weight: 500; }
+.sf-canvas .react-flow__handle { width: 12px; height: 12px; background: var(--sf-accent); border: 2px solid #0a0a0b; }
+.sf-canvas .react-flow__attribution { display: none; }
+.sf-canvas .react-flow__controls-button { background: var(--sf-panel); border-color: var(--sf-border); fill: #d4d4d8; }
+.sf-canvas .react-flow__minimap { background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: 8px; }
+@media (max-width: 1100px) {
+  .sf-canvas-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(360px, 1fr) auto; }
+  .sf-canvas-palette, .sf-canvas-props { border: 0; border-bottom: 1px solid var(--sf-border); max-height: 220px; }
+}
+/* Boundary bodies let clicks through, so connections inside them stay selectable; the title drags and selects it */
+.sf-canvas .react-flow__node-boundary { pointer-events: none !important; }
+.sf-canvas .react-flow__node-boundary .sf-el-boundary-title { pointer-events: auto !important; cursor: move; }
+
+/* ---- OpenSpec dashboard and board ----------------------------------------------------- */
+.sf-openspec .bar { display: block; height: 6px; background: var(--sf-panel-2); border-radius: 99px; overflow: hidden; }
+.sf-openspec .bar > span { display: block; height: 100%; background: var(--sf-accent); border-radius: 99px; }
+.sf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.sf-kpi { background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.sf-kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-faint); font-weight: 600; }
+.sf-kpi strong { font-size: 26px; line-height: 1.1; }
+.sf-kpi .s { font-size: 12px; color: var(--sf-muted); }
+.sf-kpi.red strong { color: #f87171; }
+.sf-kpi.green strong { color: #4ade80; }
+.sf-kpi .bar { margin-top: 6px; }
+.sf-dash-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+.sf-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.sf-flow-step { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 10px; background: var(--sf-panel-2); border: 1px solid var(--sf-border); text-align: center; }
+.sf-flow-step strong { font-size: 20px; }
+.sf-flow-step span { font-size: 11px; color: var(--sf-muted); line-height: 1.3; }
+.sf-openspec-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 60px auto; gap: 12px; align-items: center; width: 100%; padding: 9px 8px; border-radius: 8px; text-align: left; }
+.sf-openspec-row:hover { background: var(--sf-hover); }
+.sf-openspec-row .t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-board-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.sf-kanban { display: grid; grid-template-columns: repeat(7, minmax(200px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; align-items: start; }
+.sf-kanban-col { background: var(--sf-panel); border: 1px dashed var(--sf-border); border-radius: var(--sf-radius); padding: 10px; min-height: 260px; display: flex; flex-direction: column; gap: 8px; }
+.sf-kanban-col.over { border-color: var(--sf-accent); background: var(--sf-accent-soft); }
+.sf-kanban-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.sf-kcard { background: var(--sf-panel-2); border: 1px solid var(--sf-border); border-radius: 10px; padding: 10px 11px; display: flex; flex-direction: column; gap: 6px; cursor: grab; }
+.sf-kcard:hover { border-color: var(--sf-faint); }
+.sf-kcard.arch { cursor: pointer; opacity: 0.75; }
+.sf-kcard .t { font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.sf-kcard .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 11.5px; color: var(--sf-muted); }
+.sf-kcard .actions { display: flex; gap: 12px; margin-top: 2px; }
+.sf-openspec-setup { max-width: 760px; }
+.sf-dl { display: grid; grid-template-columns: 170px 1fr; gap: 8px 14px; margin: 0 0 14px; font-size: 13px; }
+.sf-dl dt { color: var(--sf-faint); font-weight: 600; }
+.sf-dl dd { margin: 0; }
+.sf-drawer-back { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 60; display: flex; justify-content: flex-end; }
+.sf-drawer { width: min(640px, 100vw); height: 100%; background: var(--sf-panel); border-left: 1px solid var(--sf-border); display: flex; flex-direction: column; box-shadow: -20px 0 50px rgba(0, 0, 0, 0.5); }
+.sf-drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--sf-border); }
+.sf-drawer-body { overflow-y: auto; padding: 16px 18px 40px; }
+.sf-prompt-modal { width: min(680px, calc(100vw - 32px)); max-height: 80vh; background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+.sf-prompt-modal .sf-drawer-head { padding: 0 0 8px; border: 0; }
+.sf-prompt-text { white-space: pre-wrap; background: var(--sf-bg); border: 1px solid var(--sf-border); border-radius: 10px; padding: 12px 14px; font-family: var(--sf-mono); font-size: 12.5px; line-height: 1.6; color: #d4d4d8; overflow-y: auto; margin: 0; }
+.sf-doc-small { font-size: 13px; }
+.sf-doc-small h1, .sf-doc-small h2 { font-size: 15px; }
+@media (max-width: 1100px) {
+  .sf-dash-grid { grid-template-columns: 1fr; }
+  .sf-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---- OpenSpec editing (documented exception to read-only) ----------------------------- */
+.sf-openspec-editor { height: 300px; border: 1px solid var(--sf-border); border-radius: 10px; overflow: hidden; background: var(--sf-bg); }
+.sf-openspec-editor .sf-codemirror { height: 100%; }
+.sf-openspec-edit .sf-callout { font-size: 12.5px; }
+
+/* ---- OpenSpec explore conversation ------------------------------------------------------ */
+.sf-explore { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; min-height: 620px; }
+.sf-explore-list { display: flex; flex-direction: column; gap: 8px; }
+.sf-explore-items { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; max-height: 560px; }
+.sf-explore-main { display: flex; flex-direction: column; min-width: 0; }
+.sf-explore-thread { flex: 1; overflow-y: auto; max-height: 520px; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 8px; }
+.sf-explore-msg { border-radius: 12px; padding: 11px 14px; border: 1px solid var(--sf-border); background: var(--sf-panel); }
+.sf-explore-msg.user { background: var(--sf-panel-2); margin-left: 60px; }
+.sf-explore-msg .who { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-faint); margin-bottom: 4px; font-weight: 600; }
+.sf-explore-msg .body { white-space: pre-wrap; font-size: 13.5px; line-height: 1.6; }
+.sf-explore-input { display: flex; gap: 10px; align-items: flex-end; margin-top: 8px; }
+.sf-explore-input textarea { flex: 1; resize: vertical; font: inherit; }
+@media (max-width: 900px) { .sf-explore { grid-template-columns: 1fr; } .sf-explore-msg.user { margin-left: 0; } }
+
+/* Step of the OpenSpec workflow shown under each kanban column title */
+.sf-kanban-step { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.4; padding: 6px 8px; border-radius: 8px; background: var(--sf-bg); border: 1px solid var(--sf-border); }
+.sf-kanban-step b { color: #d4d4d8; font-weight: 600; }
+.sf-kanban-step code { font-family: var(--sf-mono); font-size: 11px; color: #fdba74; background: rgba(255, 255, 255, 0.05); padding: 1px 5px; border-radius: 5px; width: fit-content; max-width: 100%; overflow-wrap: anywhere; }
+.sf-kanban-step span { font-size: 11px; }
+
+/* Question-mark help with a hover tip */
+.sf-help { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-left: 6px; border-radius: 50%; border: 1px solid var(--sf-faint); color: var(--sf-muted); font-size: 10px; font-weight: 700; cursor: help; position: relative; vertical-align: middle; }
+.sf-help:hover, .sf-help:focus { color: var(--sf-text); border-color: var(--sf-muted); outline: none; }
+.sf-help::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: -6px; z-index: 20; width: 230px; padding: 9px 11px; border-radius: 8px; background: #27272a; border: 1px solid var(--sf-border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); color: #e4e4e7; font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+.sf-help:hover::after, .sf-help:focus::after { opacity: 1; }
+
+/* Tooltip lines (commands and skills) keep their line breaks */
+.sf-help::after { white-space: pre-line; }
+.sf-kanban-step code { display: inline-flex; align-items: center; width: fit-content; }
+
+/* Tooltip text uses the normal UI font even when the step is shown inside a code chip */
+.sf-help::after { font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
+
+/* Conversation rows in the Explorar tab: open, propose, delete */
+.sf-explore-row { display: flex; flex-direction: column; gap: 4px; cursor: default; }
+.sf-explore-row .actions { display: flex; gap: 12px; margin-top: 2px; flex-wrap: wrap; }
+
+/* ---- OpenSpec flow demo (Visão geral) ------------------------------------------------- */
+.sf-flowdemo-track { position: relative; height: 96px; margin: 14px 28px 4px; }
+.sf-flowdemo-line { position: absolute; left: 0; right: 0; top: 30px; height: 4px; border-radius: 4px; background: var(--sf-panel-2); }
+.sf-flowdemo-line-fill { position: absolute; left: 0; top: 30px; height: 4px; border-radius: 4px; background: var(--sf-accent); transition: width 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+.sf-flowdemo-stop { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sf-flowdemo-stop .dot { width: 14px; height: 14px; margin-top: 23px; border-radius: 50%; background: var(--sf-panel); border: 2px solid var(--sf-faint); transition: all 0.4s; }
+.sf-flowdemo-stop.reached .dot { border-color: var(--sf-accent); background: var(--sf-accent-soft); }
+.sf-flowdemo-stop.now .dot { background: var(--sf-accent); box-shadow: 0 0 0 6px var(--sf-accent-soft); }
+.sf-flowdemo-stop .label { position: absolute; top: 46px; white-space: nowrap; font-size: 11.5px; color: var(--sf-faint); transition: color 0.4s; }
+.sf-flowdemo-stop.reached .label { color: var(--sf-text); }
+.sf-flowdemo-card { position: absolute; top: -2px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #27272a; border: 1px solid var(--sf-accent); color: #fdba74; font-size: 12px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); transition: left 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+.sf-flowdemo-detail { border-top: 1px solid var(--sf-border); margin-top: 26px; padding-top: 14px; min-height: 120px; }
+.sf-flowdemo-detail .cmd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sf-flowdemo-detail code { font-family: var(--sf-mono); color: #fdba74; background: rgba(255, 255, 255, 0.05); padding: 2px 7px; border-radius: 6px; font-size: 12.5px; }
+.sf-flowdemo-detail p { margin: 8px 0 10px; font-size: 13.5px; line-height: 1.55; color: #d4d4d8; }
+.sf-flowdemo-artifacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.sf-flowdemo-artifacts .art { font-family: var(--sf-mono); font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px dashed var(--sf-border); color: var(--sf-faint); transition: all 0.5s; }
+.sf-flowdemo-artifacts .art.on { border-style: solid; border-color: rgba(249, 115, 22, 0.45); color: #fdba74; background: var(--sf-accent-soft); }
+.sf-flowdemo-tasks { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.sf-flowdemo-tasks .bar { flex: 1; max-width: 260px; display: block; height: 6px; background: var(--sf-panel-2); border-radius: 99px; overflow: hidden; }
+.sf-flowdemo-tasks .bar > span { display: block; height: 100%; background: var(--sf-accent); transition: width 0.7s; }
+@media (prefers-reduced-motion: reduce) { .sf-flowdemo-card, .sf-flowdemo-line-fill { transition: none; } }
+@media (max-width: 900px) { .sf-flowdemo-track { margin: 14px 8px 4px; } .sf-flowdemo-stop .label { font-size: 10px; } }
+
+/* ---- OpenSpec flow demo: node canvas (workflow-editor style) ------------------------- */
+.sf-flowdemo-scroll { overflow-x: auto; padding: 4px 0 2px; }
+.sf-flowdemo-canvas { position: relative; margin: 0 auto; background-image: radial-gradient(#26262b 1px, transparent 1px); background-size: 22px 22px; border-radius: 12px; border: 1px solid var(--sf-border); background-color: #0d0d0f; }
+.sf-flowdemo-svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.sf-flowdemo-svg .edge { fill: none; stroke: #3f3f46; stroke-width: 2; transition: stroke 0.5s; }
+.sf-flowdemo-svg .edge.passed { stroke: #f97316; opacity: 0.6; }
+.sf-flowdemo-svg .edge.live { stroke: #fb923c; stroke-dasharray: 6 6; animation: sf-dash 0.6s linear infinite; }
+.sf-flowdemo-svg .packet { fill: #fb923c; filter: drop-shadow(0 0 6px #f97316); }
+@keyframes sf-dash { to { stroke-dashoffset: -12; } }
+.sf-flownode { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 10px; border-radius: 12px; background: #18181b; border: 1.5px solid #3f3f46; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); transition: border-color 0.5s, box-shadow 0.5s, transform 0.5s; }
+.sf-flownode .name { font-size: 12.5px; font-weight: 600; color: #e4e4e7; }
+.sf-flownode code { font-family: var(--sf-mono); font-size: 10.5px; color: #fdba74; overflow-wrap: anywhere; line-height: 1.3; }
+.sf-flownode .tasks { font-size: 10.5px; color: var(--sf-muted); }
+.sf-flownode.done { border-color: rgba(249, 115, 22, 0.55); }
+.sf-flownode.active { border-color: #fb923c; box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.18), 0 6px 20px rgba(0, 0, 0, 0.5); transform: translateY(-2px); }
+.sf-flownode.art { opacity: 0; transform: translateY(6px); pointer-events: none; border-style: dashed; }
+.sf-flownode.art.show { opacity: 1; transform: none; border-color: rgba(249, 115, 22, 0.45); }
+.sf-flowdemo-badge { position: absolute; padding: 3px 9px; border-radius: 999px; background: #27272a; border: 1px solid var(--sf-border); font-size: 11px; color: #d4d4d8; }
+.sf-flowdemo-detail { margin-top: 10px; }
+.sf-flowdemo-detail p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.55; color: #d4d4d8; }
+@media (prefers-reduced-motion: reduce) { .sf-flowdemo-svg .edge.live { animation: none; } }
+
+/* Presentation tab and the teaser card on Visão geral */
+.sf-tour-teaser { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.sf-tour { max-width: 1000px; }
+.sf-tour .sf-flowdemo-scroll { display: flex; justify-content: center; }
+
+.sf-explore.single { grid-template-columns: 1fr; }
+
+/* Connection status in the chat header */
+.sf-explore-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-width: 0; }
+
+/* ---- change workspace: proposal, tasks, deltas, Claude revision, linked tools ----------- */
+.sf-ws { display: flex; flex-direction: column; gap: 12px; max-width: none; height: calc(100vh - 48px); padding-bottom: 16px; box-sizing: border-box; }
+.sf-ws-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.sf-ws-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--sf-text); overflow-wrap: anywhere; }
+.sf-ws-body { display: grid; grid-template-columns: 170px minmax(0, 1fr) 320px; gap: 14px; flex: 1; min-height: 0; align-items: stretch; }
+.sf-ws-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
+.sf-ws-nav button { text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--sf-muted); cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }
+.sf-ws-nav button:hover { background: var(--sf-hover); color: var(--sf-text); }
+.sf-ws-nav button.on { background: var(--sf-panel-2); border-color: var(--sf-border); color: var(--sf-text); font-weight: 600; }
+.sf-ws-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.sf-ws-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; flex: 1; min-height: 0; }
+.sf-ws-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.sf-ws-pane-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.sf-ws-editor { height: auto; flex: 1; min-height: 0; }
+.sf-ws-preview { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--sf-border); border-radius: 10px; padding: 16px 22px; background: var(--sf-panel); }
+.sf-ws-side { min-width: 0; min-height: 0; overflow-y: auto; }
+.sf-ws-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-faint); margin: 14px 0 6px; }
+.sf-ws-link { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--sf-border); font-size: 13px; }
+.sf-ws-notes { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sf-ws-claude textarea { font-size: 13px; }
+.sf-diff { font-family: var(--sf-mono); font-size: 12px; line-height: 1.55; border: 1px solid var(--sf-border); border-radius: 10px; max-height: 340px; overflow: auto; padding: 6px 0; background: var(--sf-bg); }
+.sf-diff-line { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 10px; color: var(--sf-muted); }
+.sf-diff-add { background: var(--sf-green-soft); color: var(--sf-text); }
+.sf-diff-del { background: var(--sf-red-soft); color: var(--sf-text); }
+.sf-diff-gap { color: var(--sf-faint); padding: 2px 10px; font-size: 11px; }
+.sf-used-by { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }
+@media (max-width: 1180px) {
+  .sf-ws-body { grid-template-columns: minmax(0, 1fr); }
+  .sf-ws { height: auto; }
+  .sf-ws-nav { flex-direction: row; flex-wrap: wrap; overflow: visible; }
+  .sf-ws-side { overflow: visible; }
+}
+@media (max-width: 760px) {
+  .sf-ws-split { grid-template-columns: minmax(0, 1fr); }
+  .sf-ws-editor, .sf-ws-preview { flex: none; height: 380px; }
 }

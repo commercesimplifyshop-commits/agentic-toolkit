@@ -70,7 +70,7 @@ export class AiService {
 
   /** Where the Claude Code binary is: setting, env, PATH, or the VS Code extension. */
   claudeBinary(): string | null {
-    const candidates = [this.settings().claudeCode.bin, process.env.STOREFLOW_CLAUDE_BIN].filter(Boolean) as string[]
+    const candidates = [this.settings().claudeCode.bin, process.env.AGENTIC_TOOLKIT_CLAUDE_BIN].filter(Boolean) as string[]
     const exe = process.platform === 'win32' ? ['claude.exe'] : ['claude']
     for (const dir of (process.env.PATH ?? '').split(path.delimiter)) for (const e of exe) candidates.push(path.join(dir, e))
     candidates.push(path.join(os.homedir(), '.local', 'bin', exe[0]), path.join(os.homedir(), '.claude', 'local', exe[0]))
@@ -224,7 +224,7 @@ export class AiService {
       'user',
       '--strict-mcp-config',
       '--no-session-persistence',
-      // Read access to the extracted map (inside StoreFlow's data dir) instead of the search_map tool
+      // Read access to the extracted map (inside Agentic Toolkit's data dir) instead of the search_map tool
       '--add-dir',
       mapsDir,
       '--append-system-prompt',

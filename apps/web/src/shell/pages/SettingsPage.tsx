@@ -206,12 +206,12 @@ function WorkspaceSettings() {
       <div className="sf-callout red">
         <div className="sf-row">
           <span style={{ flex: 1 }}>
-            Remover apaga do StoreFlow o mapa, as anotações{ws.source.type !== 'local' ? ' e a cópia do código' : ''}. {ws.source.type === 'local' ? 'A pasta local não é tocada.' : ''}
+            Remover apaga do Agentic Toolkit o mapa, as anotações{ws.source.type !== 'local' ? ' e a cópia do código' : ''}. {ws.source.type === 'local' ? 'A pasta local não é tocada.' : ''}
           </span>
           <button
             className="sf-btn small danger"
             onClick={async () => {
-              if (!confirm(`Remover ${ws.name} do StoreFlow?`)) return
+              if (!confirm(`Remover ${ws.name} do Agentic Toolkit?`)) return
               await api.del(`/workspaces/${id}`)
               await refreshWorkspaces()
               navigate('/')

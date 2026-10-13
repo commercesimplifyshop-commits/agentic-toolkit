@@ -37,7 +37,7 @@ export function CodePage() {
       .then(setFile)
       .catch((e: ApiError) => {
         setFile(null)
-        setError(e.rule === 'read.sensitive-file' ? 'Arquivo sensível: o StoreFlow não exibe o conteúdo de arquivos de credenciais.' : e.message)
+        setError(e.rule === 'read.sensitive-file' ? 'Arquivo sensível: o Agentic Toolkit não exibe o conteúdo de arquivos de credenciais.' : e.message)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, filePath])

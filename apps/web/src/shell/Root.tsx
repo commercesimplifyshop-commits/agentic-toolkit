@@ -18,6 +18,9 @@ const FlowPage = lazy(() => import('./pages/FlowPage').then((m) => ({ default: m
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage').then((m) => ({ default: m.ApiClientPage })))
 const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })))
 const BoardPage = lazy(() => import('./pages/BoardPage').then((m) => ({ default: m.BoardPage })))
+const DiagramsPage = lazy(() => import('./pages/DiagramsPage').then((m) => ({ default: m.DiagramsPage })))
+const OpenSpecPage = lazy(() => import('./pages/OpenSpecPage').then((m) => ({ default: m.OpenSpecPage })))
+const OpenSpecChangePage = lazy(() => import('./pages/OpenSpecChangePage').then((m) => ({ default: m.OpenSpecChangePage })))
 const CodePage = lazy(() => import('./pages/CodePage').then((m) => ({ default: m.CodePage })))
 const loading = <div className="sf-page"><span className="sf-spinner" /></div>
 
@@ -56,6 +59,9 @@ const router = createBrowserRouter([
       { path: 'api-client', element: <Suspense fallback={loading}><ApiClientPage /></Suspense> },
       { path: 'docs', element: <Suspense fallback={loading}><DocsPage /></Suspense> },
       { path: 'board', element: <Suspense fallback={loading}><BoardPage /></Suspense> },
+      { path: 'diagrams', element: <Suspense fallback={loading}><DiagramsPage /></Suspense> },
+      { path: 'openspec', element: <Suspense fallback={loading}><OpenSpecPage /></Suspense> },
+      { path: 'openspec/change/:name', element: <Suspense fallback={loading}><OpenSpecChangePage /></Suspense> },
       { path: 'flow', element: <Suspense fallback={loading}><FlowPage mode="flow" /></Suspense> },
       { path: 'debug', element: <Suspense fallback={loading}><FlowPage mode="debug" /></Suspense> },
       { path: 'risks', element: <RisksPage /> },

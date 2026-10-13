@@ -66,7 +66,7 @@ export function AuditPage() {
             <li>Toda rota da API declara uma ação; rota sem ação é bloqueada (fail closed).</li>
             <li>Cada ação tem método HTTP permitido e validador próprio, executado antes do handler.</li>
             <li>O acesso ao código passa por uma camada que só lê, bloqueia ../, links simbólicos para fora e arquivos de credenciais.</li>
-            <li>Escrita só no diretório de dados do StoreFlow, nunca dentro de uma instalação Magento.</li>
+            <li>Escrita só no diretório de dados do Agentic Toolkit, nunca dentro de uma instalação Magento.</li>
             <li>Comandos externos têm allowlist: git só leitura/clone (push desativado), scripts do analyzer e Claude Code com {rules?.claude.allowedTools.join(', ')}.</li>
             <li>Tudo é registrado abaixo, inclusive as tentativas bloqueadas.</li>
           </ul>
@@ -89,7 +89,7 @@ export function AuditPage() {
             {rules?.actions.map((a) => (
               <tr key={a.id}>
                 <td className="sf-mono">{a.id}</td>
-                <td>{a.kind === 'read' ? <span className="sf-badge green">leitura</span> : a.kind === 'external' ? <span className="sf-badge orange">requisição externa</span> : <span className="sf-badge blue">dados StoreFlow</span>}</td>
+                <td>{a.kind === 'read' ? <span className="sf-badge green">leitura</span> : a.kind === 'external' ? <span className="sf-badge orange">requisição externa</span> : a.kind === 'repo-exception' ? <span className="sf-badge red">exceção de escrita</span> : <span className="sf-badge blue">dados Agentic Toolkit</span>}</td>
                 <td className="sf-mono sf-muted">{a.methods.join(', ')}</td>
                 <td>{a.validated ? '✓ próprio' : <span className="sf-faint">guarda global</span>}</td>
                 <td className="sf-muted" style={{ fontSize: 12.5 }}>

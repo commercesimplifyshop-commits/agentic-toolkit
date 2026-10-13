@@ -54,11 +54,11 @@ export function resolveInside(root: string, relPath = ''): string {
   return real
 }
 
-/** Destinations StoreFlow may write to: only inside its own data directory. */
+/** Destinations Agentic Toolkit may write to: only inside its own data directory. */
 export function assertWritableTarget(target: string, protectedRoots: string[] = []) {
   const resolved = path.resolve(target)
   if (!isInside(DATA_DIR, resolved)) {
-    throw new ReadOnlyViolation(`Escrita fora do diretório de dados do StoreFlow bloqueada: ${resolved}`, 'write.outside-data-dir')
+    throw new ReadOnlyViolation(`Escrita fora do diretório de dados do Agentic Toolkit bloqueada: ${resolved}`, 'write.outside-data-dir')
   }
   for (const root of protectedRoots) {
     if (isInside(path.resolve(root), resolved)) {
@@ -70,7 +70,7 @@ export function assertWritableTarget(target: string, protectedRoots: string[] = 
 /** A Magento root must not contain the data dir, otherwise our outputs would land in the project. */
 export function assertDataDirOutside(magentoRoot: string) {
   if (isInside(path.resolve(magentoRoot), DATA_DIR)) {
-    throw new ReadOnlyViolation('O diretório de dados do StoreFlow não pode ficar dentro da instalação Magento', 'write.data-dir-inside-magento')
+    throw new ReadOnlyViolation('O diretório de dados do Agentic Toolkit não pode ficar dentro da instalação Magento', 'write.data-dir-inside-magento')
   }
 }
 

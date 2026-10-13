@@ -4,7 +4,7 @@ import path from 'node:path'
 import { assertWritableTarget } from '../readonly/path-guard'
 import { WorkspacesService } from '../workspaces/workspaces.service'
 
-/** Integration map (extractor output) and annotations of a workspace, inside StoreFlow's data dir. */
+/** Integration map (extractor output) and annotations of a workspace, inside Agentic Toolkit's data dir. */
 @Injectable()
 export class MapStore {
   constructor(private readonly workspaces: WorkspacesService) {}

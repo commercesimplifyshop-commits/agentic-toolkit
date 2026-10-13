@@ -8,7 +8,7 @@ const MAX_UNCOMPRESSED = 4 * 1024 ** 3 // 4 GB
 const MAX_ENTRIES = 400_000
 
 /**
- * Extracts an uploaded project zip into StoreFlow's data dir with zip-slip,
+ * Extracts an uploaded project zip into Agentic Toolkit's data dir with zip-slip,
  * symlink and zip-bomb protection.
  */
 @Injectable()

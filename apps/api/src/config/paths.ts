@@ -3,10 +3,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 /**
- * Everything StoreFlow writes (clones, uploads, maps, annotations, audit log)
+ * Everything Agentic Toolkit writes (clones, uploads, maps, annotations, audit log)
  * lives here, and only here. Magento code is never written to.
  */
-export const DATA_DIR = path.resolve(process.env.STOREFLOW_DATA ?? path.join(os.homedir(), '.storeflow'))
+export const DATA_DIR = path.resolve(process.env.AGENTIC_TOOLKIT_DATA ?? path.join(os.homedir(), '.agentic-toolkit'))
 
 export const DIRS = {
   repos: path.join(DATA_DIR, 'repos'),
@@ -21,7 +21,7 @@ export function ensureDataDirs() {
 }
 
 /** packages/analyzer, resolved from node_modules (workspace link) */
-export const ANALYZER_DIR = path.dirname(require.resolve('@storeflow/analyzer/package.json'))
+export const ANALYZER_DIR = path.dirname(require.resolve('@agentic-toolkit/analyzer/package.json'))
 
-export const HOST = process.env.STOREFLOW_HOST ?? '127.0.0.1'
-export const PORT = Number(process.env.STOREFLOW_PORT ?? 4310)
+export const HOST = process.env.AGENTIC_TOOLKIT_HOST ?? '127.0.0.1'
+export const PORT = Number(process.env.AGENTIC_TOOLKIT_PORT ?? 4310)

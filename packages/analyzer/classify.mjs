@@ -1,4 +1,4 @@
-// Maps a Magento integration point to a zone of the StoreFlow purchase flow.
+// Maps a Magento integration point to a zone of the Agentic Toolkit purchase flow.
 // Rules are ordered: the first match wins, so specific rules come first.
 // Anything left as "outros" is a candidate for Claude to classify by reading the code.
 

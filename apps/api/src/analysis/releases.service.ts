@@ -49,7 +49,7 @@ export class ReleasesService {
       const tags: string[] = []
       for (let page = 1; page <= 4; page++) {
         const res = await fetch(`https://api.github.com/repos/magento/magento2/tags?per_page=100&page=${page}`, {
-          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'storeflow' },
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'agentic-toolkit' },
           signal: AbortSignal.timeout(10_000),
         })
         if (!res.ok) break

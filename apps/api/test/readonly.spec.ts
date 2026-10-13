@@ -6,6 +6,11 @@ import path from 'node:path'
 import { ANALYZER_DIR, DATA_DIR } from '../src/config/paths'
 import { CodeIndexService } from '../src/files/code-index.service'
 import { dataGetters, fieldName, findMethod } from '../src/apiclient/php-signature'
+import { parseGraph } from '../src/diagrams/graph'
+import { parseDelta, parseSpec, parseTasks } from '../src/openspec/openspec-parse'
+import { checkRepoDelete, checkRepoWrite } from '../src/readonly/repo-exceptions'
+import { RepoWriter, sha256 } from '../src/readonly/repo-writer.service'
+import { ConflictException } from '@nestjs/common'
 import { ACTION_KEY } from '../src/readonly/actions'
 import { AuditService } from '../src/readonly/audit.service'
 import { CLAUDE_DOCS_BUILTINS, CLAUDE_DOCS_DENIED, CLAUDE_DOCS_TOOLS, CommandRunner } from '../src/readonly/command-runner.service'
@@ -210,6 +215,27 @@ describe('ReadOnlyGuard', () => {
     expect(() => guard.canActivate(ctx('boards.save', 'POST', { params: { id: 'abc-123', boardId: 'quadro-1a2b3c' }, body: {} }))).toThrow(ForbiddenException)
   })
 
+  it('validates diagram requests', () => {
+    const save = (diagramId: string, body: Record<string, unknown>) => () => guard.canActivate(ctx('diagrams.save', 'PUT', { params: { id: 'abc-123', diagramId }, body }))
+    expect(save('c4-contexto-1a2b3c', { source: 'C4Context\n  Person(u, "Cliente")' })()).toBe(true)
+    expect(save('c4-contexto-1a2b3c', { kind: 'uml', name: 'Classes' })()).toBe(true)
+    expect(save('../../app', { source: 'x' })).toThrow(ForbiddenException)
+    expect(save('c4-contexto-1a2b3c', { kind: 'script' })).toThrow(ForbiddenException)
+    expect(save('c4-contexto-1a2b3c', { source: 'x'.repeat(200_001) })).toThrow(ForbiddenException)
+    expect(save('c4-contexto-1a2b3c', { source: 42 })).toThrow(ForbiddenException)
+  })
+
+  it('validates model generation requests', () => {
+    const gen = (body: Record<string, unknown>) => () => guard.canActivate(ctx('diagrams.generate', 'POST', { params: { id: 'abc-123' }, body }))
+    expect(gen({ request: 'loja B2B com cotação', scenario: 'b2b', type: 'c4-container' })()).toBe(true)
+    expect(gen({ request: 'ok', scenario: 'retail', type: 'c4-container' })).toThrow(ForbiddenException)
+    expect(gen({ request: 'ok', scenario: 'b2c', type: 'bpmn' })).toThrow(ForbiddenException)
+    expect(gen({ request: 'a', scenario: 'b2c', type: 'flow' })).toThrow(ForbiddenException)
+    expect(gen({ request: 'x'.repeat(4001), scenario: 'b2c', type: 'flow' })).toThrow(ForbiddenException)
+    expect(() => guard.canActivate(ctx('diagrams.cancel', 'POST', { params: { id: 'abc-123', jobId: '../../etc' } }))).toThrow(ForbiddenException)
+    expect(guard.canActivate(ctx('diagrams.cancel', 'POST', { params: { id: 'abc-123', jobId: 'fdca85e6-6621-4a48-8d75-2b15a7b16808' } }))).toBe(true)
+  })
+
   it('runs the action validator', () => {
     expect(() => guard.canActivate(ctx('files.read', 'GET', { params: { id: 'abc-123' }, query: { path: 'app/etc/env.php' } }))).toThrow(ForbiddenException)
     expect(() => guard.canActivate(ctx('files.read', 'GET', { params: { id: 'abc-123' }, query: { path: '../secret' } }))).toThrow(ForbiddenException)
@@ -231,7 +257,7 @@ describe('API simulator', () => {
     expect(send({ url: 'https://loja.test/rest/default/V1/orders', method: 'POST', body: '{}', headers: { Authorization: 'Bearer x' } })()).toBe(true)
   })
 
-  it('rejects other protocols, credentials in the URL, bad methods/headers and StoreFlow itself', () => {
+  it('rejects other protocols, credentials in the URL, bad methods/headers and Agentic Toolkit itself', () => {
     expect(send({ url: 'file:///etc/passwd' })).toThrow(ForbiddenException)
     expect(send({ url: 'https://admin:pw@loja.test/' })).toThrow(ForbiddenException)
     expect(send({ url: 'https://loja.test/', method: 'TRACE' })).toThrow(ForbiddenException)
@@ -338,3 +364,215 @@ describe('Magento detector', () => {
     expect(detectMagento(rofs, other).isMagento).toBe(false)
   })
 })
+
+describe('Canvas diagram graph (what the editor saves and Claude returns)', () => {
+  const valid = {
+    family: 'c4',
+    nodes: [
+      { id: 'loja', type: 'boundary', title: 'Loja' },
+      { id: 'vitrine', type: 'container', title: 'Vitrine', tech: 'PHP', parent: 'loja', x: 32, y: 64 },
+      { id: 'cliente', type: 'person', title: 'Cliente' },
+    ],
+    edges: [{ id: 'e1', source: 'cliente', target: 'vitrine', label: 'Compra', tech: 'HTTPS', dashed: true }],
+  }
+
+  it('accepts and normalizes a well formed graph', () => {
+    const g = parseGraph(valid)
+    expect(g.version).toBe(1)
+    expect(g.nodes.find((n) => n.id === 'vitrine')).toMatchObject({ parent: 'loja', x: 32, y: 64, tech: 'PHP' })
+    expect(parseGraph(JSON.stringify(valid)).edges[0]).toMatchObject({ label: 'Compra', dashed: true })
+  })
+
+  it('rejects unknown families and element types from the wrong family', () => {
+    expect(() => parseGraph({ ...valid, family: 'uml' })).toThrow()
+    expect(() => parseGraph({ ...valid, nodes: [{ id: 'a', type: 'decision', title: 'x' }], edges: [] })).toThrow()
+  })
+
+  it('rejects connections to missing elements and duplicated ids', () => {
+    expect(() => parseGraph({ ...valid, edges: [{ id: 'e2', source: 'cliente', target: 'nada' }] })).toThrow()
+    expect(() => parseGraph({ ...valid, nodes: [valid.nodes[0], valid.nodes[0]], edges: [] })).toThrow()
+  })
+
+  it('rejects ids and texts outside the limits, and malformed JSON', () => {
+    expect(() => parseGraph({ ...valid, nodes: [{ id: '../x', type: 'person', title: 'x' }], edges: [] })).toThrow()
+    expect(() => parseGraph({ ...valid, nodes: [{ id: 'a', type: 'person', title: 'x'.repeat(121) }], edges: [] })).toThrow()
+    expect(() => parseGraph('{ nao é json')).toThrow()
+    expect(() => parseGraph({ ...valid, nodes: [{ id: 'a', type: 'person', title: 'x', x: 1e9 }], edges: [] })).toThrow()
+  })
+})
+
+describe('OpenSpec reading', () => {
+  it('reads a spec: purpose, requirements and scenarios', () => {
+    const md = `# Checkout Specification
+
+## Purpose
+Fluxo de finalização de compra do cliente na loja.
+
+## Requirements
+
+### Requirement: Pedido exige endereço
+O sistema MUST exigir endereço.
+
+#### Scenario: Endereço ausente
+- **WHEN** sem endereço
+- **THEN** erro
+
+### Requirement: Sem cenário ainda
+Texto.
+`
+    const parsed = parseSpec(md)
+    expect(parsed.purpose).toBe('Fluxo de finalização de compra do cliente na loja.')
+    expect(parsed.requirements.map((r) => [r.name, r.scenarios.length])).toEqual([
+      ['Pedido exige endereço', 1],
+      ['Sem cenário ainda', 0],
+    ])
+  })
+
+  it('reads a delta: which requirements are added, modified or removed', () => {
+    const md = `# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: Pix como pagamento
+Texto.
+
+## MODIFIED Requirements
+
+### Requirement: Pedido exige endereço
+Texto.
+
+## REMOVED Requirements
+
+### Requirement: Cupom antigo
+`
+    expect(parseDelta(md)).toEqual({ added: ['Pix como pagamento'], modified: ['Pedido exige endereço'], removed: ['Cupom antigo'] })
+  })
+
+  it('counts tasks and keeps their groups', () => {
+    const md = `# Tasks
+
+## 1. Backend <!-- grupo -->
+
+- [x] 1.1 Criar método Pix
+- [ ] 1.2 Validar expiração
+
+## 2. Front
+
+- [X] 2.1 Exibir QR
+`
+    const t = parseTasks(md)
+    expect(t.total).toBe(3)
+    expect(t.done).toBe(2)
+    expect(t.groups.map((g) => [g.title, g.tasks.length])).toEqual([
+      ['1. Backend', 2],
+      ['2. Front', 1],
+    ])
+  })
+})
+
+describe('OpenSpec CLI allowlist', () => {
+  const runner = new CommandRunner()
+  const entry = path.join('C:', 'Users', 'x', 'npm', 'node_modules', '@fission-ai', 'openspec', 'bin', 'openspec.js')
+  const opts = { executable: entry, cwd: os.tmpdir() }
+
+  it('allows read-only verbs', () => {
+    for (const args of [['list', '--json'], ['status', '--change', 'add-pix', '--json'], ['show', 'checkout', '--type', 'spec', '--json'], ['validate', '--all', '--json', '--no-interactive'], ['--version']]) {
+      expect(() => runner.validate('openspec', args, opts)).not.toThrow()
+    }
+  })
+
+  it('refuses every verb that writes to the project', () => {
+    for (const verb of ['update', 'archive', 'change', 'config', 'schema', 'store', 'workset', 'feedback', 'completion', 'spec']) {
+      blocked(() => runner.validate('openspec', [verb], opts), 'cmd.openspec-verb')
+    }
+  })
+
+  it('refuses --store (another repository) and unknown validate flags', () => {
+    blocked(() => runner.validate('openspec', ['list', '--store', 'outro'], opts), 'cmd.openspec-store')
+    blocked(() => runner.validate('openspec', ['validate', '--all', '--fix'], opts), 'cmd.openspec-flag')
+  })
+
+  it('only runs the OpenSpec package entry, never another script', () => {
+    blocked(() => runner.validate('openspec', ['list'], { executable: path.join(os.tmpdir(), 'evil.js'), cwd: os.tmpdir() }), 'cmd.openspec-entry')
+  })
+})
+
+describe('Repository write exceptions (OpenSpec)', () => {
+  const allowed = (rel: string, dir = 'openspec') => checkRepoWrite('openspec', rel, dir).ok
+  const reason = (rel: string, dir = 'openspec') => checkRepoWrite('openspec', rel, dir).reason ?? ''
+
+  it('allows the OpenSpec tree and the Claude commands/skills it installs', () => {
+    expect(allowed('openspec/config.yaml')).toBe(true)
+    expect(allowed('openspec/specs/checkout/spec.md')).toBe(true)
+    expect(allowed('openspec/changes/adicionar-pix/tasks.md')).toBe(true)
+    expect(allowed('openspec/changes/archive/.gitkeep')).toBe(true)
+    expect(allowed('docs/openspec/specs/pedido/spec.md', 'docs/openspec')).toBe(true)
+    expect(allowed('.claude/commands/opsx/apply.md')).toBe(true)
+    expect(allowed('.claude/skills/openspec-apply-change/SKILL.md')).toBe(true)
+  })
+
+  it('blocks everything else, including the application code and credentials', () => {
+    for (const rel of ['app/etc/env.php', 'auth.json', 'composer.json', '.env', 'app/code/Vendor/Mod/etc/module.xml', 'CLAUDE.md', 'AGENTS.md', '.claude/settings.json', '.claude/commands/outro/x.md', '.claude/skills/outra/SKILL.md']) {
+      expect(allowed(rel)).toBe(false)
+    }
+  })
+
+  it('blocks path tricks and wrong extensions', () => {
+    expect(allowed('openspec/../app/etc/env.php')).toBe(false)
+    expect(allowed('/etc/passwd')).toBe(false)
+    expect(allowed('C:/Windows/x.md')).toBe(false)
+    expect(allowed('openspec/specs/x.php')).toBe(false)
+    expect(reason('openspec/specs/x.php')).toMatch(/Extensão/)
+    expect(allowed('openspec/../../x.md')).toBe(false)
+  })
+
+  it('writes through RepoWriter only inside the exception, with a version check', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sf-writer-'))
+    const workspaces = { rootOf: () => root } as never
+    const writer = new RepoWriter(workspaces, new AuditService())
+    const base = { exception: 'openspec', openspecDir: 'openspec', action: 'test' }
+
+    const created = writer.write('ws', { ...base, rel: 'openspec/specs/x/spec.md', content: 'v1', create: true })
+    expect(created.created).toBe(true)
+    expect(fs.readFileSync(path.join(root, 'openspec/specs/x/spec.md'), 'utf8')).toBe('v1')
+
+    // A stale editor (old sha) must not overwrite
+    expect(() => writer.write('ws', { ...base, rel: 'openspec/specs/x/spec.md', content: 'v2', create: false, expectedSha: sha256('antiga') })).toThrow(ConflictException)
+    const ok = writer.write('ws', { ...base, rel: 'openspec/specs/x/spec.md', content: 'v2', create: false, expectedSha: created.sha })
+    expect(ok.created).toBe(false)
+    expect(fs.readFileSync(path.join(root, 'openspec/specs/x/spec.md'), 'utf8')).toBe('v2')
+
+    // Outside the list: refused, nothing written
+    expect(() => writer.write('ws', { ...base, rel: 'app/etc/env.php', content: 'x', create: true })).toThrow(ReadOnlyViolation)
+    expect(fs.existsSync(path.join(root, 'app/etc/env.php'))).toBe(false)
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  it('runs OpenSpec init only in a staging folder inside the data dir', () => {
+    const runner = new CommandRunner()
+    const entry = path.join('C:', 'x', 'node_modules', '@fission-ai', 'openspec', 'bin', 'openspec.js')
+    const staging = path.join(DATA_DIR, 'workspaces', 'ws', 'staging', 'install-1')
+    expect(() => runner.validate('openspec', ['init', '--tools', 'claude', '.'], { executable: entry, cwd: staging })).not.toThrow()
+    blocked(() => runner.validate('openspec', ['init', '--tools', 'claude', '.'], { executable: entry, cwd: os.tmpdir() }), 'cmd.openspec-init-cwd')
+    blocked(() => runner.validate('openspec', ['init', '--tools', 'claude', '--force', '.'], { executable: entry, cwd: staging }), 'cmd.openspec-init-args')
+  })
+})
+
+describe('OpenSpec removal (exception)', () => {
+  const del = (rel: string, dir = 'openspec') => checkRepoDelete('openspec', rel, dir).ok
+
+  it('allows removing files of an active change', () => {
+    expect(del('openspec/changes/adicionar-pix/proposal.md')).toBe(true)
+    expect(del('openspec/changes/adicionar-pix/specs/checkout/spec.md')).toBe(true)
+    expect(del('docs/openspec/changes/x/tasks.md', 'docs/openspec')).toBe(true)
+  })
+
+  it('never removes archived changes, main specs, config or code', () => {
+    expect(del('openspec/changes/archive/2026-10-01-inicial/proposal.md')).toBe(false)
+    expect(del('openspec/specs/checkout/spec.md')).toBe(false)
+    expect(del('openspec/config.yaml')).toBe(false)
+    expect(del('app/code/Vendor/Mod/Model/X.php')).toBe(false)
+    expect(del('openspec/changes/../specs/x.md')).toBe(false)
+  })
+})
+

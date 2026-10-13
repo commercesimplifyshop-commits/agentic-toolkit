@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { ANALYZER_DIR } from '../config/paths'
-import { assertWritableTarget, ReadOnlyViolation } from './path-guard'
+import { ANALYZER_DIR, DATA_DIR } from '../config/paths'
+import { assertWritableTarget, isInside, ReadOnlyViolation } from './path-guard'
 
 export interface RunOptions {
   cwd?: string
@@ -24,11 +24,15 @@ export interface RunResult {
   stderr: string
 }
 
-/** git subcommands StoreFlow may use: clone/fetch into its data dir and read-only queries. */
+/** git subcommands Agentic Toolkit may use: clone/fetch into its data dir and read-only queries. */
 const GIT_ALLOWED = new Set(['clone', 'fetch', 'rev-parse', 'log', 'ls-remote', 'ls-files', 'remote', 'sparse-checkout', 'checkout', 'branch', 'shortlog', 'show'])
 const GIT_FORBIDDEN_FLAGS = [/^--upload-pack/, /^--receive-pack/, /^-u$/, /^--exec/, /^--template/, /^--config=core\.(hooksPath|sshCommand|fsmonitor)/]
 
 const ANALYZER_SCRIPTS = new Set(['extract.mjs', 'native-reference.mjs', 'context.mjs'])
+
+/** OpenSpec verbs that only read: list, show, status and validate (see validateOpenSpec). */
+export const OPENSPEC_READ_VERBS = ['list', 'show', 'status', 'validate', '--version']
+const OPENSPEC_VALIDATE_FLAGS = ['--all', '--changes', '--specs', '--json', '--strict', '--no-interactive', '--type', '--concurrency', '--report']
 
 /** Claude Code may only use tools that read */
 export const CLAUDE_READONLY_TOOLS = ['Read', 'Grep', 'Glob']
@@ -73,6 +77,8 @@ export class CommandRunner {
         return
       }
       case 'claude': {
+        // Version check: no prompt, no tools, nothing to protect
+        if (args.length === 1 && args[0] === '--version') return
         const listAfter = (flag: string) => {
           const i = args.indexOf(flag)
           return i < 0 ? null : (args[i + 1] ?? '').split(/[ ,]+/).filter(Boolean)
@@ -90,17 +96,42 @@ export class CommandRunner {
         if (listAfter('--setting-sources')?.join(',') !== 'user') throw new ReadOnlyViolation('Claude Code precisa de --setting-sources user (ignora hooks do repositório)', 'cmd.claude-settings')
         if (!args.includes('--strict-mcp-config')) throw new ReadOnlyViolation('Claude Code precisa de --strict-mcp-config (sem servidores MCP)', 'cmd.claude-mcp')
         if (args.some((a) => /dangerously|bypassPermissions|acceptEdits/.test(a))) throw new ReadOnlyViolation('Bypass de permissões do Claude Code é proibido', 'cmd.claude-bypass')
-        // Extra readable dirs may only be StoreFlow's own data (maps, annotations)
+        // Extra readable dirs may only be Agentic Toolkit's own data (maps, annotations)
         args.forEach((a, i) => {
           if (a === '--add-dir') assertWritableTarget(args[i + 1] ?? '', protectedRoots)
         })
         return
       }
+      case 'openspec':
+        return this.validateOpenSpec(args, opts)
       case 'claude-docs':
         return this.validateClaudeDocs(args, opts)
       default:
         throw new ReadOnlyViolation(`Programa não permitido: ${cmd}`, 'cmd.not-allowed')
     }
+  }
+
+  /**
+   * OpenSpec CLI, read-only verbs only. Anything that writes (init, update, archive,
+   * change, config, store...) is refused: the dashboard never changes a repository.
+   */
+  private validateOpenSpec(args: string[], opts: RunOptions) {
+    const entry = opts.executable ?? ''
+    if (!/[\\/]@fission-ai[\\/]openspec[\\/]bin[\\/]openspec\.js$/.test(entry)) throw new ReadOnlyViolation('Executável do OpenSpec não reconhecido', 'cmd.openspec-entry')
+    const verb = args[0]
+    if (verb === 'init') {
+      // Install runs only in a staging folder inside Agentic Toolkit's data dir: the files are
+      // checked and copied by RepoWriter, the CLI never writes into the Magento repository
+      if (args.join(' ') !== 'init --tools claude .') throw new ReadOnlyViolation('Instalação aceita apenas "init --tools claude ."', 'cmd.openspec-init-args')
+      if (!isInside(DATA_DIR, path.resolve(opts.cwd ?? ''))) throw new ReadOnlyViolation('O init só roda na pasta de preparação do Agentic Toolkit', 'cmd.openspec-init-cwd')
+      return
+    }
+    if (!OPENSPEC_READ_VERBS.includes(verb)) throw new ReadOnlyViolation(`OpenSpec "${verb}" escreve no projeto e não é permitido aqui`, 'cmd.openspec-verb')
+    if (verb === 'validate' && args.some((a) => a.startsWith('--') && !OPENSPEC_VALIDATE_FLAGS.includes(a))) {
+      throw new ReadOnlyViolation('Flag de validação não permitida', 'cmd.openspec-flag')
+    }
+    if (args.some((a) => a === '--store' || a.startsWith('--store='))) throw new ReadOnlyViolation('--store aponta para outro repositório: não permitido', 'cmd.openspec-store')
+    if (!opts.cwd) throw new ReadOnlyViolation('OpenSpec precisa de um diretório de trabalho', 'cmd.openspec-cwd')
   }
 
   private validateClaudeDocs(args: string[], opts: RunOptions) {
@@ -116,7 +147,7 @@ export class CommandRunner {
     if (CLAUDE_DOCS_DENIED.some((t) => !denied.includes(t))) throw new ReadOnlyViolation('Publicação no Claude Docs precisa negar leitura de código, escrita e exclusão', 'cmd.claude-docs-tools')
     if (listAfter('--setting-sources')?.join(',') !== 'user') throw new ReadOnlyViolation('Claude Code precisa de --setting-sources user', 'cmd.claude-settings')
     if (args.some((a) => /dangerously|bypassPermissions|acceptEdits|^--add-dir$/.test(a))) throw new ReadOnlyViolation('Publicação no Claude Docs não pode ampliar acesso nem pular permissões', 'cmd.claude-bypass')
-    // No code in reach: it runs from a folder inside StoreFlow's data dir
+    // No code in reach: it runs from a folder inside Agentic Toolkit's data dir
     if (!opts.cwd) throw new ReadOnlyViolation('Publicação no Claude Docs precisa de um diretório de trabalho', 'cmd.claude-docs-cwd')
     assertWritableTarget(opts.cwd, opts.protectedRoots ?? [])
   }
@@ -145,7 +176,7 @@ export class CommandRunner {
     if (sub === 'branch' && rest.some((a) => !/^(--show-current|-a|-r|--list)$/.test(a))) {
       throw new ReadOnlyViolation('git branch só pode listar', 'cmd.git-branch')
     }
-    // Commands that write to a working tree only run in StoreFlow's own clones
+    // Commands that write to a working tree only run in Agentic Toolkit's own clones
     if (['clone', 'fetch', 'sparse-checkout', 'checkout'].includes(sub) || (sub === 'remote' && rest[0] === 'set-url')) {
       const target = sub === 'clone' ? rest.filter((a) => !a.startsWith('-')).pop() : workDir
       if (!target) throw new ReadOnlyViolation(`git ${sub} sem destino explícito`, 'cmd.git-target')
@@ -160,7 +191,10 @@ export class CommandRunner {
   run(cmd: string, args: string[], opts: RunOptions = {}): Promise<RunResult> {
     this.validate(cmd, args, opts)
     return new Promise((resolve, reject) => {
-      const child = spawn(opts.executable ?? (cmd === 'node' ? process.execPath : cmd === 'claude-docs' ? 'claude' : cmd), args, {
+      // The OpenSpec CLI is a Node script: run it with this Node, never through a shell
+      const target = cmd === 'openspec' ? process.execPath : (opts.executable ?? (cmd === 'node' ? process.execPath : cmd === 'claude-docs' ? 'claude' : cmd))
+      const argv = cmd === 'openspec' ? [opts.executable ?? '', ...args] : args
+      const child = spawn(target, argv, {
         cwd: opts.cwd,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...opts.env },
         shell: false,

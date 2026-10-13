@@ -106,7 +106,7 @@ export class DocsService {
     private readonly audit: AuditService,
   ) {}
 
-  // ---- storage (StoreFlow data dir only) ---------------------------------------------------
+  // ---- storage (Agentic Toolkit data dir only) ---------------------------------------------------
 
   private dir(id: string) {
     const dir = path.join(this.workspaces.dataDirOf(id), 'docs')
@@ -153,12 +153,12 @@ export class DocsService {
   /** A job lost on restart leaves "generating"/"publishing" behind: report it as interrupted. */
   private settle(doc: StoredDoc): StoredDoc {
     const lost = (jobId?: string) => !jobId || this.jobs.get(jobId)?.status !== 'running'
-    if (doc.status === 'generating' && lost(doc.jobId)) Object.assign(doc, { status: doc.markdown ? 'ready' : 'error', error: 'Geração interrompida (o StoreFlow foi reiniciado). Gere novamente.' })
+    if (doc.status === 'generating' && lost(doc.jobId)) Object.assign(doc, { status: doc.markdown ? 'ready' : 'error', error: 'Geração interrompida (o Agentic Toolkit foi reiniciado). Gere novamente.' })
     if (doc.claudeDocs?.status === 'publishing' && lost(doc.claudeDocs.jobId)) Object.assign(doc.claudeDocs, { status: 'error', error: 'Publicação interrompida. Publique novamente.' })
     return doc
   }
 
-  /** Removes StoreFlow's copy. A doc already published to Claude Docs stays there. */
+  /** Removes Agentic Toolkit's copy. A doc already published to Claude Docs stays there. */
   delete(id: string, docId: string) {
     const file = this.file(id, docId)
     if (fs.existsSync(file)) fs.unlinkSync(file)
@@ -191,7 +191,7 @@ export class DocsService {
     const publish = input.publish !== false
     const job = this.jobs.create('docs', id, [
       { id: 'write', label: 'Claude Code lendo o código e escrevendo' },
-      { id: 'save', label: 'Salvando no StoreFlow' },
+      { id: 'save', label: 'Salvando no Agentic Toolkit' },
       ...(publish ? [{ id: 'publish', label: 'Publicando no Claude Docs' }] : []),
     ])
     doc.jobId = job.id
@@ -431,7 +431,7 @@ ${doc.markdown}
     const doc = this.get(id, docId)
     if (!doc.markdown) throw new BadRequestException('Documento vazio')
     const ws = this.workspaces.get(id)
-    const meta = { title: doc.title, subtitle: `${ws.name} · ${ws.edition ?? 'Magento'} ${ws.version ?? ''} · ${KIND_LABEL[doc.kind]}: ${doc.subject} · gerado pelo StoreFlow em ${new Date(doc.updatedAt).toLocaleString('pt-BR')}` }
+    const meta = { title: doc.title, subtitle: `${ws.name} · ${ws.edition ?? 'Magento'} ${ws.version ?? ''} · ${KIND_LABEL[doc.kind]}: ${doc.subject} · gerado pelo Agentic Toolkit em ${new Date(doc.updatedAt).toLocaleString('pt-BR')}` }
     const body = format === 'docx' ? await toDocx(doc.markdown, meta) : await toPdf(doc.markdown, meta)
     return { body, fileName: `${slug(doc.title) || doc.id}.${format}` }
   }

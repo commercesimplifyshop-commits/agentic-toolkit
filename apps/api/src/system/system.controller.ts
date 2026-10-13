@@ -33,7 +33,7 @@ export class SystemController {
   @Action('system.health')
   rules() {
     return {
-      principle: 'StoreFlow nunca escreve no código Magento. Ele só lê; tudo o que grava fica no seu diretório de dados.',
+      principle: 'Agentic Toolkit nunca escreve no código Magento. Ele só lê; tudo o que grava fica no seu diretório de dados.',
       dataDir: DATA_DIR,
       actions: Object.entries(ACTIONS).map(([id, a]) => ({ id, kind: a.kind, methods: a.methods, description: a.description, validated: 'validate' in a })),
       claude: { allowedTools: CLAUDE_READONLY_TOOLS, deniedTools: CLAUDE_DENIED_TOOLS },
@@ -66,7 +66,7 @@ export class SystemController {
     const checks: Check[] = [
       expectBlocked('path-traversal', 'Leitura fora da instalação (../) é bloqueada', () => resolveInside(sandbox, '../../etc/passwd')),
       expectBlocked('sensitive-read', 'Leitura de app/etc/env.php é bloqueada', () => this.rofs.read(sandbox, 'app/etc/env.php')),
-      expectBlocked('write-outside', 'Escrita fora do diretório de dados é bloqueada', () => assertWritableTarget(path.resolve(DATA_DIR, '..', 'storeflow-escape'))),
+      expectBlocked('write-outside', 'Escrita fora do diretório de dados é bloqueada', () => assertWritableTarget(path.resolve(DATA_DIR, '..', 'agentic-toolkit-escape'))),
       expectBlocked('write-magento', 'Escrita dentro de uma instalação Magento é bloqueada', () => assertWritableTarget(path.join(sandbox, 'app'), [sandbox])),
       expectBlocked('git-push', 'git push é bloqueado', () => this.runner.validate('git', ['push', 'origin', 'main'])),
       expectBlocked('git-commit', 'git commit é bloqueado', () => this.runner.validate('git', ['commit', '-m', 'x'])),

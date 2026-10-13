@@ -1,10 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common'
 import { Action } from '../readonly/actions'
+import { LinksService } from '../links/links.service'
 import { BoardsService, type BoardScene } from './boards.service'
 
 @Controller('workspaces/:id/boards')
 export class BoardsController {
-  constructor(private readonly boards: BoardsService) {}
+  constructor(
+    private readonly boards: BoardsService,
+    private readonly links: LinksService,
+  ) {}
 
   @Get()
   @Action('boards.list')
@@ -33,6 +37,7 @@ export class BoardsController {
   @Delete(':boardId')
   @Action('boards.delete')
   remove(@Param('id') id: string, @Param('boardId') boardId: string) {
+    this.links.removeRef(id, 'board', boardId)
     return this.boards.delete(id, boardId)
   }
 }

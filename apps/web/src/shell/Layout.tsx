@@ -19,6 +19,14 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: 'Desenvolvimento',
+    items: [
+      { to: 'code', label: 'Explorador de código', icon: '{ }' },
+      { to: 'diagrams', label: 'Diagramas de arquitetura', icon: '⬡' },
+      { to: 'openspec', label: 'OpenSpec', icon: '◎' },
+    ],
+  },
+  {
     title: 'Arquitetura',
     items: [
       { to: 'modules', label: 'Módulos & extensões', icon: '▦', count: (o) => ({ value: o.modules.byOrigin.custom }) },
@@ -51,15 +59,11 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
       { to: 'security', label: 'Segurança & patches', icon: '⛨', count: (o) => ({ value: o.highlights.filter((h) => h.level === 'critical').length, tone: 'red' }) },
     ],
   },
-  {
-    title: 'Código',
-    items: [{ to: 'code', label: 'Explorador de código', icon: '{ }' }],
-  },
 ]
 
 const TITLES: Record<string, string> = Object.fromEntries(SECTIONS.flatMap((s) => s.items.map((i) => [i.to, i.label])))
 
-const COLLAPSE_KEY = 'storeflow.sidebarCollapsed'
+const COLLAPSE_KEY = 'agentic-toolkit.sidebarCollapsed'
 
 /** Per-viewer UI preference; storage may be unavailable (private mode), so never rely on it. */
 function readCollapsed() {
@@ -102,12 +106,12 @@ export function Layout() {
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
   const title = TITLES[sub] ?? (sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
-  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board'].includes(sub)
+  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams'].includes(sub)
 
   return (
     <div className="sf-root">
       <aside className="sf-rail">
-        <Link to="/" className="sf-rail-logo" title="StoreFlow">
+        <Link to="/" className="sf-rail-logo" title="Agentic Toolkit">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
             <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.6 3.7L12 11.7 5.4 8 12 4.3ZM5 9.7l6 3.4v6.6l-6-3.4V9.7Zm8 10v-6.6l6-3.4v6.6l-6 3.4Z" fill="currentColor" />
           </svg>
@@ -168,7 +172,7 @@ export function Layout() {
             <span className="sf-nav-icon">⚙</span>
             <span className="sf-nav-label">Configurações</span>
           </NavLink>
-          <div className="sf-readonly-pill" title="O StoreFlow nunca escreve no código Magento">
+          <div className="sf-readonly-pill" title="O Agentic Toolkit nunca escreve no código Magento">
             <span className="dot" /> <span className="sf-nav-label">Somente leitura</span>
           </div>
         </div>

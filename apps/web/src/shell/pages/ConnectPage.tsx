@@ -22,7 +22,7 @@ export function ConnectPage() {
               </svg>
             </div>
             <div>
-              <strong>StoreFlow</strong>
+              <strong>Agentic Toolkit</strong>
               <span>Entenda qualquer instalação Magento 2 lendo o código</span>
             </div>
           </div>
@@ -49,8 +49,8 @@ function Steps({ current }: { current: 0 | 1 | 2 }) {
 function ReadOnlyNote() {
   return (
     <div className="sf-callout green" style={{ marginBottom: 20 }}>
-      <strong>Somente leitura.</strong> O StoreFlow nunca altera o código Magento. Uma pasta local é lida no lugar; repositórios e .zip são copiados para o
-      diretório de dados do StoreFlow e o push fica desativado. Arquivos de credenciais (<code>env.php</code>, <code>auth.json</code>, <code>.env</code>) são
+      <strong>Somente leitura.</strong> O Agentic Toolkit nunca altera o código Magento. Uma pasta local é lida no lugar; repositórios e .zip são copiados para o
+      diretório de dados do Agentic Toolkit e o push fica desativado. Arquivos de credenciais (<code>env.php</code>, <code>auth.json</code>, <code>.env</code>) são
       listados, mas nunca lidos.
     </div>
   )
@@ -73,7 +73,7 @@ function SourceStep() {
   return (
     <>
       <h1>Conectar uma instalação Magento</h1>
-      <p className="lead">Aponte para o código de uma loja Magento 2 ou Adobe Commerce. O StoreFlow valida que é uma instalação Magento, mapeia o que foi customizado e monta o dashboard.</p>
+      <p className="lead">Aponte para o código de uma loja Magento 2 ou Adobe Commerce. O Agentic Toolkit valida que é uma instalação Magento, mapeia o que foi customizado e monta o dashboard.</p>
       <Steps current={0} />
       <ReadOnlyNote />
       <div className="sf-card">
@@ -240,7 +240,7 @@ function GitSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
           <div>
             <strong>Usar o git já configurado nesta máquina (recomendado)</strong>
             <span>
-              Se você consegue rodar <code>git clone</code> desse repositório no terminal (chave SSH ou Git Credential Manager), o StoreFlow usa o mesmo acesso. Nenhum segredo passa pelo app.
+              Se você consegue rodar <code>git clone</code> desse repositório no terminal (chave SSH ou Git Credential Manager), o Agentic Toolkit usa o mesmo acesso. Nenhum segredo passa pelo app.
             </span>
           </div>
         </div>
@@ -378,7 +378,7 @@ function ZipSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
               escolha o arquivo
             </button>
             <div className="sf-faint" style={{ marginTop: 6, fontSize: 12 }}>
-              Extraído no diretório de dados do StoreFlow, com proteção contra zip-slip e links simbólicos.
+              Extraído no diretório de dados do Agentic Toolkit, com proteção contra zip-slip e links simbólicos.
             </div>
           </>
         ) : (
@@ -539,7 +539,7 @@ function ConfigureStep({ id }: { id: string }) {
         </Link>
         <span style={{ flex: 1 }} />
         <button className="sf-btn small danger" onClick={remove} disabled={analyzing}>
-          Remover do StoreFlow
+          Remover do Agentic Toolkit
         </button>
       </div>
     </>

@@ -83,7 +83,7 @@ interface MapState {
   annotatedCount: number
   error: string | null
   focusItemId: string | null
-  /** Loads a workspace's map + annotations from the StoreFlow API (cached per workspace). */
+  /** Loads a workspace's map + annotations from the Agentic Toolkit API (cached per workspace). */
   loadWorkspace: (id: string, force?: boolean) => Promise<void>
   focusItem: (id: string | null) => void
 }

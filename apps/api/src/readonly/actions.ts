@@ -5,10 +5,10 @@ import path from 'node:path'
 import { isSensitive, ReadOnlyViolation } from './path-guard'
 
 /**
- * CRITICAL RULE: StoreFlow is read-only with respect to Magento code.
+ * CRITICAL RULE: Agentic Toolkit is read-only with respect to Magento code.
  *
- * - `read`: only reads (Magento code, StoreFlow data).
- * - `data-write`: writes exclusively inside StoreFlow's data directory
+ * - `read`: only reads (Magento code, Agentic Toolkit data).
+ * - `data-write`: writes exclusively inside Agentic Toolkit's data directory
  *   (its own clones, uploads, maps, annotations, settings). Never in a Magento repo.
  * - `external`: an HTTP request the engineer sends to an environment they chose
  *   (API simulator). It never touches the repository; it may change that
@@ -17,7 +17,7 @@ import { isSensitive, ReadOnlyViolation } from './path-guard'
  * Every API route must be tagged with one of these actions and each action runs
  * its validator before the handler. Untagged routes are rejected (fail closed).
  */
-export type ActionKind = 'read' | 'data-write' | 'external'
+export type ActionKind = 'read' | 'data-write' | 'external' | 'repo-exception'
 
 export interface ActionContext {
   req: Request
@@ -53,9 +53,52 @@ const requireBoardId = (ctx: ActionContext) => {
   if (!/^[a-z0-9-]{4,80}$/.test(String(ctx.req.params.boardId ?? ''))) fail('Quadro inválido', 'input.board-id')
 }
 
+const requireLinkChange = (ctx: ActionContext) => {
+  const change = (ctx.req.body ?? {}).change
+  if (typeof change !== 'string' || !/^[a-z0-9][a-z0-9-]{0,80}$/.test(change)) fail('Mudança inválida', 'input.link-change')
+}
+
+const requireLinkBody = (ctx: ActionContext) => {
+  requireLinkChange(ctx)
+  const b = (ctx.req.body ?? {}) as Record<string, unknown>
+  if (!['diagram', 'board'].includes(String(b.kind))) fail('Tipo de ferramenta inválido', 'input.link-kind')
+  if (!/^[a-z0-9-]{4,80}$/.test(String(b.refId ?? ''))) fail('Ferramenta inválida', 'input.link-ref')
+}
+
 const requireBoardName = (ctx: ActionContext) => {
   const name = ctx.req.body?.name
   if (name !== undefined && (typeof name !== 'string' || name.length > 120)) fail('Nome do quadro inválido (até 120 caracteres)', 'input.board-name')
+}
+
+const requireDiagramId = (ctx: ActionContext) => {
+  if (!/^[a-z0-9-]{4,80}$/.test(String(ctx.req.params.diagramId ?? ''))) fail('Diagrama inválido', 'input.diagram-id')
+}
+
+const requireDiagramBody = (ctx: ActionContext) => {
+  const b = ctx.req.body ?? {}
+  if (b.name !== undefined && (typeof b.name !== 'string' || b.name.length > 120)) fail('Nome do diagrama inválido (até 120 caracteres)', 'input.diagram-name')
+  if (b.kind !== undefined && !['c4', 'uml', 'flow', 'other'].includes(String(b.kind))) fail('Tipo de diagrama inválido', 'input.diagram-kind')
+  if (b.mode !== undefined && !['code', 'canvas'].includes(String(b.mode))) fail('Modo do diagrama inválido', 'input.diagram-mode')
+  if (b.source !== undefined && (typeof b.source !== 'string' || b.source.length > 200_000)) fail('Código do diagrama inválido ou maior que 200 KB', 'input.diagram-source')
+}
+
+const requireGeneration = (ctx: ActionContext) => {
+  const b = ctx.req.body ?? {}
+  const request = String(b.request ?? '').trim()
+  if (request.length < 3 || request.length > 4000) fail('Descreva o modelo em 3 a 4000 caracteres', 'input.generate-request')
+  if (!['b2c', 'b2b', 'd2c', 'marketplace', 'custom'].includes(String(b.scenario))) fail('Cenário inválido', 'input.generate-scenario')
+  if (!['c4-context', 'c4-container', 'c4-component', 'uml-class', 'uml-sequence', 'uml-state', 'flow', 'er'].includes(String(b.type))) fail('Tipo de modelo inválido', 'input.generate-type')
+}
+
+const requireJobId = (ctx: ActionContext) => {
+  if (!/^[0-9a-f-]{36}$/.test(String(ctx.req.params.jobId ?? ''))) fail('Tarefa inválida', 'input.job-id')
+}
+
+const OPENSPEC_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,160}$/
+
+const requireOpenSpecName = (value: unknown, field: string) => {
+  const v = String(value ?? '')
+  if (!OPENSPEC_NAME.test(v) || v.includes('..')) fail(`Nome inválido no OpenSpec (${field})`, 'input.openspec-name')
 }
 
 const requireDocId = (ctx: ActionContext) => {
@@ -105,12 +148,12 @@ export const ACTIONS = {
     },
   },
   'workspaces.upload': { kind: 'data-write', methods: ['POST'], description: 'Recebe um .zip e extrai no diretório de dados' },
-  'workspaces.configure': { kind: 'data-write', methods: ['PUT'], description: 'Escolhe a raiz Magento e os vendors próprios (metadados do StoreFlow)', validate: requireWorkspace },
-  'workspaces.sync': { kind: 'data-write', methods: ['POST'], description: 'git fetch no clone do StoreFlow (nunca push)', validate: requireWorkspace },
+  'workspaces.configure': { kind: 'data-write', methods: ['PUT'], description: 'Escolhe a raiz Magento e os vendors próprios (metadados do Agentic Toolkit)', validate: requireWorkspace },
+  'workspaces.sync': { kind: 'data-write', methods: ['POST'], description: 'git fetch no clone do Agentic Toolkit (nunca push)', validate: requireWorkspace },
   'workspaces.delete': {
     kind: 'data-write',
     methods: ['DELETE'],
-    description: 'Remove a instalação do StoreFlow (apaga só clones/uploads/mapas do StoreFlow, nunca a pasta local)',
+    description: 'Remove a instalação do Agentic Toolkit (apaga só clones/uploads/mapas do Agentic Toolkit, nunca a pasta local)',
     validate: requireWorkspace,
   },
 
@@ -121,7 +164,7 @@ export const ACTIONS = {
   'annotations.save': {
     kind: 'data-write',
     methods: ['PUT'],
-    description: 'Grava anotações de análise no diretório de dados do StoreFlow',
+    description: 'Grava anotações de análise no diretório de dados do Agentic Toolkit',
     validate: (ctx) => {
       requireWorkspace(ctx)
       const items = ctx.req.body?.items
@@ -189,8 +232,8 @@ export const ACTIONS = {
       if (!['http:', 'https:'].includes(url.protocol)) fail('Use uma URL http:// ou https://', 'input.url')
       if (url.username || url.password) fail('Não coloque credenciais na URL; use a aba Autorização', 'input.url-credentials')
       const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
-      if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname) && port === Number(process.env.STOREFLOW_PORT ?? 4310)) {
-        fail('O simulador não pode chamar a própria API do StoreFlow', 'input.self-target')
+      if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname) && port === Number(process.env.AGENTIC_TOOLKIT_PORT ?? 4310)) {
+        fail('O simulador não pode chamar a própria API do Agentic Toolkit', 'input.self-target')
       }
       if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(String(b.method))) fail('Método HTTP inválido', 'input.method')
       for (const k of Object.keys(b.headers ?? {})) if (!/^[!#$%&'*+.^\w`|~-]+$/.test(k)) fail(`Cabeçalho inválido: ${k}`, 'input.header')
@@ -231,15 +274,60 @@ export const ACTIONS = {
     validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)),
   },
   'docs.cancel': { kind: 'data-write', methods: ['POST'], description: 'Cancela a geração ou publicação em andamento de uma documentação', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
-  'docs.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Remove a cópia da documentação no StoreFlow', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
+  'docs.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Remove a cópia da documentação no Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
+
+  'links.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lista as ferramentas vinculadas às mudanças (diagramas e quadros)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const q = ctx.req.query as Record<string, unknown>
+      if (q.change !== undefined && !/^[a-z0-9][a-z0-9-]{0,80}$/.test(String(q.change))) fail('Mudança inválida', 'input.link-change')
+      if (q.kind !== undefined && !['diagram', 'board'].includes(String(q.kind))) fail('Tipo de ferramenta inválido', 'input.link-kind')
+      if (q.refId !== undefined && !/^[a-z0-9-]{4,80}$/.test(String(q.refId))) fail('Ferramenta inválida', 'input.link-ref')
+    },
+  },
+  'links.add': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Vincula um diagrama ou quadro existente a uma mudança (somente dados do Agentic Toolkit)',
+    validate: (ctx) => (requireWorkspace(ctx), requireLinkBody(ctx)),
+  },
+  'links.remove': {
+    kind: 'data-write',
+    methods: ['DELETE'],
+    description: 'Desvincula uma ferramenta de uma mudança; o diagrama ou quadro continua existindo',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^[a-f0-9]{10}$/.test(String(ctx.req.params.linkId ?? ''))) fail('Vínculo inválido', 'input.link-id')
+    },
+  },
+  'links.assist': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'O Claude decide que ferramentas a mudança precisa (somente leitura) e cria e vincula cada uma',
+    validate: (ctx) => (requireWorkspace(ctx), requireLinkChange(ctx)),
+  },
+  'links.create': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Cria e vincula as ferramentas sugeridas por uma revisão, depois que você aplicou a revisão',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      requireLinkChange(ctx)
+      const tools = (ctx.req.body ?? {}).tools
+      if (!Array.isArray(tools) || tools.length > 3) fail('Ferramentas inválidas (até 3)', 'input.link-tools')
+    },
+  },
 
   'boards.list': { kind: 'read', methods: ['GET'], description: 'Lista os quadros (lousa) da instalação', validate: requireWorkspace },
   'boards.get': { kind: 'read', methods: ['GET'], description: 'Abre um quadro', validate: (ctx) => (requireWorkspace(ctx), requireBoardId(ctx)) },
-  'boards.create': { kind: 'data-write', methods: ['POST'], description: 'Cria um quadro no diretório de dados do StoreFlow', validate: (ctx) => (requireWorkspace(ctx), requireBoardName(ctx)) },
+  'boards.create': { kind: 'data-write', methods: ['POST'], description: 'Cria um quadro no diretório de dados do Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireBoardName(ctx)) },
   'boards.save': {
     kind: 'data-write',
     methods: ['PUT'],
-    description: 'Salva desenho e nome de um quadro no diretório de dados do StoreFlow',
+    description: 'Salva desenho e nome de um quadro no diretório de dados do Agentic Toolkit',
     validate: (ctx) => {
       requireWorkspace(ctx)
       requireBoardId(ctx)
@@ -249,8 +337,167 @@ export const ACTIONS = {
       if (scene?.files !== undefined && (typeof scene.files !== 'object' || Array.isArray(scene.files))) fail('Arquivos do quadro inválidos', 'input.board-scene')
     },
   },
-  'boards.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Exclui um quadro do diretório de dados do StoreFlow', validate: (ctx) => (requireWorkspace(ctx), requireBoardId(ctx)) },
+  'boards.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Exclui um quadro do diretório de dados do Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireBoardId(ctx)) },
 
+  'diagrams.list': { kind: 'read', methods: ['GET'], description: 'Lista os diagramas de arquitetura da instalação', validate: requireWorkspace },
+  'diagrams.get': { kind: 'read', methods: ['GET'], description: 'Abre um diagrama de arquitetura', validate: (ctx) => (requireWorkspace(ctx), requireDiagramId(ctx)) },
+  'diagrams.create': { kind: 'data-write', methods: ['POST'], description: 'Cria um diagrama no diretório de dados do Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDiagramBody(ctx)) },
+  'diagrams.save': { kind: 'data-write', methods: ['PUT'], description: 'Salva o código de um diagrama no diretório de dados do Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDiagramId(ctx), requireDiagramBody(ctx)) },
+  'diagrams.generate': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Gera um modelo de arquitetura com o Claude Code (somente leitura) e salva como diagrama no diretório de dados',
+    validate: (ctx) => (requireWorkspace(ctx), requireGeneration(ctx)),
+  },
+  'diagrams.cancel': { kind: 'data-write', methods: ['POST'], description: 'Cancela a geração de um diagrama em andamento', validate: (ctx) => (requireWorkspace(ctx), requireJobId(ctx)) },
+  'diagrams.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Exclui um diagrama do diretório de dados do Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDiagramId(ctx)) },
+
+  'openspec.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lê o OpenSpec da instalação (specs, mudanças, tarefas, validação pelo CLI) e gera prompts para o Claude',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const q = ctx.req.query as Record<string, unknown>
+      if (q.name !== undefined) requireOpenSpecName(q.name, 'mudança')
+      if (q.id !== undefined) requireOpenSpecName(q.id, 'spec')
+      if (q.change !== undefined && q.change !== '') requireOpenSpecName(q.change, 'mudança')
+      if (q.kind !== undefined && !['install', 'propose', 'apply', 'validate', 'archive'].includes(String(q.kind))) fail('Ação de prompt inválida', 'input.openspec-kind')
+    },
+  },
+  'openspec.write': {
+    kind: 'data-write',
+    methods: ['PUT'],
+    description: 'Grava status manual (revisão, aprovada, etc.) e o mapeamento do OpenSpec no diretório de dados do Agentic Toolkit. Nunca escreve no repositório.',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (ctx.req.path.endsWith('/status')) {
+        if (!['change', 'spec'].includes(String(b.kind))) fail('Tipo de item inválido', 'input.openspec-kind')
+        requireOpenSpecName(b.item, 'item')
+        if (b.status !== null && typeof b.status !== 'string') fail('Status inválido', 'input.openspec-status')
+      } else if (ctx.req.path.endsWith('/mapping')) {
+        const p = String(b.path ?? '')
+        if (p.length > 200) fail('Caminho longo demais', 'input.openspec-path')
+      }
+    },
+  },
+  'openspec.save': {
+    kind: 'repo-exception',
+    methods: ['PUT', 'POST'],
+    description: 'EXCEÇÃO DE ESCRITA: cria ou edita specs, mudanças e tarefas do OpenSpec (lista em repo-exceptions.ts), com confirmação e auditoria',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (ctx.req.path.endsWith('/file')) {
+        if (typeof b.path !== 'string' || b.path.length > 300) fail('Caminho inválido', 'input.openspec-path')
+        if (typeof b.content !== 'string' || Buffer.byteLength(b.content, 'utf8') > 512 * 1024) fail('Conteúdo inválido ou maior que 512 KB', 'input.openspec-content')
+        if (b.expectedSha !== undefined && !/^[a-f0-9]{64}$/.test(String(b.expectedSha))) fail('Versão do arquivo inválida', 'input.openspec-sha')
+      } else if (ctx.req.path.endsWith('/change') || ctx.req.path.endsWith('/change/skip')) {
+        requireOpenSpecName(b.name, 'mudança')
+      } else if (ctx.req.path.endsWith('/spec')) {
+        if (typeof b.capability !== 'string' || b.capability.length > 160) fail('Capacidade inválida', 'input.openspec-capability')
+      }
+    },
+  },
+  'openspec.install.preview': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Prévia da instalação do OpenSpec: roda o CLI numa pasta de preparação do Agentic Toolkit e lista o que seria copiado',
+    validate: (ctx) => requireWorkspace(ctx),
+  },
+  'openspec.install': {
+    kind: 'repo-exception',
+    methods: ['POST'],
+    description: 'EXCEÇÃO DE ESCRITA: copia a instalação do OpenSpec (openspec/ e comandos do Claude) para a instalação, após confirmação',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^[a-f0-9]{16}$/.test(String((ctx.req.body ?? {}).planId ?? ''))) fail('Prévia inválida', 'input.openspec-plan')
+    },
+  },
+  'openspec.revise': {
+    kind: 'read',
+    methods: ['POST'],
+    description: 'Revisa um arquivo do OpenSpec a partir de um pedido em linguagem natural (Claude Code somente leitura; nada é salvo até você aplicar)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (typeof b.path !== 'string' || b.path.length > 300 || b.path.includes('..')) fail('Caminho inválido', 'input.openspec-path')
+      if (typeof b.instruction !== 'string' || b.instruction.trim().length < 3 || b.instruction.length > 2000) fail('Descreva a alteração em 3 a 2000 caracteres', 'input.openspec-request')
+    },
+  },
+  'openspec.draft': {
+    kind: 'read',
+    methods: ['POST'],
+    description: 'Rascunho de proposta, tarefas ou spec pelo Claude Code (somente leitura; o texto só é salvo se você confirmar)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (!['proposal', 'tasks', 'spec'].includes(String(b.kind))) fail('Tipo de rascunho inválido', 'input.openspec-kind')
+      if (typeof b.request !== 'string' || b.request.trim().length < 3 || b.request.length > 4000) fail('Descreva o pedido em 3 a 4000 caracteres', 'input.openspec-request')
+    },
+  },
+  'openspec.explore.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lê as conversas de exploração do OpenSpec (somente leitura)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const q = ctx.req.query as Record<string, unknown>
+      if (q.id !== undefined && !/^[a-f0-9]{12}$/.test(String(q.id))) fail('Conversa inválida', 'input.explore-id')
+    },
+  },
+  'openspec.delete': {
+    kind: 'repo-exception',
+    methods: ['DELETE'],
+    description: 'EXCEÇÃO DE ESCRITA: remove uma mudança ativa do OpenSpec (com confirmação do nome e cópia de segurança no Agentic Toolkit)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const q = ctx.req.query as Record<string, unknown>
+      requireOpenSpecName(q.name, 'mudança')
+      if (q.confirm !== q.name) fail('Confirme digitando o nome da mudança', 'input.openspec-confirm')
+    },
+  },
+  'openspec.explore.link': {
+    kind: 'data-write',
+    methods: ['PUT'],
+    description: 'Liga uma conversa de exploração à mudança criada a partir dela (só o histórico do Agentic Toolkit)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (!/^[a-f0-9]{12}$/.test(String(b.id ?? ''))) fail('Conversa inválida', 'input.explore-id')
+      requireOpenSpecName(b.linkedChange, 'mudança')
+    },
+  },
+  'openspec.explore.propose': {
+    kind: 'read',
+    methods: ['POST'],
+    description: 'Rascunha a proposta de uma mudança a partir de uma conversa de exploração (somente leitura; nada é criado)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^[a-f0-9]{12}$/.test(String((ctx.req.body ?? {}).sessionId ?? ''))) fail('Conversa inválida', 'input.explore-id')
+    },
+  },
+  'openspec.explore.delete': {
+    kind: 'data-write',
+    methods: ['DELETE'],
+    description: 'Remove uma conversa de exploração do diretório de dados do Agentic Toolkit',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^[a-f0-9]{12}$/.test(String((ctx.req.query as Record<string, unknown>).id ?? ''))) fail('Conversa inválida', 'input.explore-id')
+    },
+  },
+  'openspec.explore': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Conversa de exploração com o Claude (só lê o código). Grava apenas o histórico da conversa no diretório de dados do Agentic Toolkit',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (typeof b.message !== 'string' || b.message.trim().length < 2 || b.message.length > 4000) fail('Mensagem entre 2 e 4000 caracteres', 'input.explore-message')
+      if (b.sessionId !== undefined && !/^[a-f0-9]{12}$/.test(String(b.sessionId))) fail('Conversa inválida', 'input.explore-id')
+    },
+  },
   'ai.providers': { kind: 'read', methods: ['GET'], description: 'Provedores de IA disponíveis' },
   'ai.settings': { kind: 'data-write', methods: ['PUT'], description: 'Configura o provedor de IA (gravado no diretório de dados)' },
   'ai.ask': {
@@ -267,5 +514,5 @@ export const ACTIONS = {
 
 export type ActionId = keyof typeof ACTIONS
 
-export const ACTION_KEY = 'storeflow:action'
+export const ACTION_KEY = 'agentic-toolkit:action'
 export const Action = (id: ActionId) => SetMetadata(ACTION_KEY, id)
