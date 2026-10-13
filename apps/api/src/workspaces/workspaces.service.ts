@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { DATA_DIR, DIRS } from '../config/paths'
+import { CORE_DIR, DEFAULT_TECH, techDirs, type TechId } from '../config/paths'
 import { JobsService } from '../jobs/jobs.service'
 import { assertDataDirOutside, assertWritableTarget, isInside, ReadOnlyViolation } from '../readonly/path-guard'
 import { ReadOnlyFs } from '../readonly/readonly-fs.service'
+import { detectTech } from '../techs/detect'
+import { techInfo } from '../techs/registry'
+import type { Detection } from '../techs/types'
 import { GitService, sanitizeUrl, type GitAuth } from './git.service'
-import { detectMagento, readVersion, vendorsOf, type Detection } from './magento-detector'
+import { readVersion, vendorsOf } from './magento-detector'
 import { ZipService } from './zip.service'
 
 export type WorkspaceSource =
@@ -18,10 +21,13 @@ export type WorkspaceSource =
 export interface Workspace {
   id: string
   name: string
+  /** Which technology this installation is: decides its detector, overview, sidebar and data folder */
+  tech: TechId
   source: WorkspaceSource
   /** Where the code lives: the local folder itself, or Agentic Toolkit's clone/extraction */
   checkoutDir: string
-  magentoRoot?: string
+  /** Project root inside checkoutDir (the Magento root, or the folder with cartridges/ for Salesforce) */
+  root?: string
   edition?: string
   version?: string
   ownVendors: string[]
@@ -32,7 +38,7 @@ export interface Workspace {
   analyzedAt?: string
 }
 
-const STORE = path.join(DATA_DIR, 'workspaces.json')
+const STORE = path.join(CORE_DIR, 'workspaces.json')
 
 const slug = (s: string) =>
   s
@@ -40,7 +46,7 @@ const slug = (s: string) =>
     .normalize('NFD')
     .replace(/[^\w]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || 'magento'
+    .slice(0, 40) || 'projeto'
 
 @Injectable()
 export class WorkspacesService {
@@ -53,13 +59,16 @@ export class WorkspacesService {
     private readonly jobs: JobsService,
   ) {
     try {
-      this.workspaces = JSON.parse(fs.readFileSync(STORE, 'utf8'))
+      const list = JSON.parse(fs.readFileSync(STORE, 'utf8')) as Workspace[]
+      // installations created before technologies existed are Adobe Commerce
+      this.workspaces = list.map((w) => ({ ...w, tech: w.tech ?? DEFAULT_TECH }))
     } catch {
       this.workspaces = []
     }
   }
 
   private save() {
+    fs.mkdirSync(CORE_DIR, { recursive: true })
     fs.writeFileSync(STORE, JSON.stringify(this.workspaces, null, 2))
   }
 
@@ -73,15 +82,16 @@ export class WorkspacesService {
     return ws
   }
 
-  /** Magento root of a ready workspace. Used by every validator that reads code. */
+  /** Project root of a ready workspace. Used by every validator that reads code. */
   rootOf(id: string) {
     const ws = this.get(id)
-    if (!ws.magentoRoot) throw new ReadOnlyViolation('Instalação ainda sem raiz Magento definida', 'workspace.no-root')
-    return ws.magentoRoot
+    if (!ws.root) throw new ReadOnlyViolation('Instalação ainda sem raiz definida', 'workspace.no-root')
+    return ws.root
   }
 
   dataDirOf(id: string) {
-    const dir = path.join(DIRS.workspaces, id)
+    const ws = this.get(id)
+    const dir = path.join(techDirs(ws.tech).workspaces, id)
     assertWritableTarget(dir)
     fs.mkdirSync(dir, { recursive: true })
     return dir
@@ -98,37 +108,48 @@ export class WorkspacesService {
   }
 
   /** Detection only: nothing is copied or written. */
-  inspect(dir: string): Detection {
-    return detectMagento(this.rofs, dir)
+  inspect(dir: string, tech: TechId = DEFAULT_TECH): Detection {
+    return detectTech(tech, this.rofs, dir)
   }
 
   private applyDetection(ws: Workspace, detection: Detection) {
-    if (detection.isMagento) {
+    if (detection.match) {
       this.setRoot(ws, detection.path)
     } else if (detection.candidates.length === 1) {
       this.setRoot(ws, detection.candidates[0].path)
     } else {
-      this.update(ws, { status: detection.candidates.length ? 'needs-root' : 'error', error: detection.candidates.length ? undefined : 'Nenhuma instalação Magento encontrada nesta origem' })
+      const label = techInfo(ws.tech).name
+      this.update(ws, {
+        status: detection.candidates.length ? 'needs-root' : 'error',
+        error: detection.candidates.length ? undefined : `Nenhuma instalação de ${label} encontrada nesta origem`,
+      })
     }
   }
 
   private setRoot(ws: Workspace, root: string) {
-    if (!isInside(ws.checkoutDir, root)) throw new BadRequestException('A raiz Magento precisa estar dentro da origem conectada')
+    if (!isInside(ws.checkoutDir, root)) throw new BadRequestException('A raiz precisa estar dentro da origem conectada')
     assertDataDirOutside(root)
-    const detection = detectMagento(this.rofs, root)
-    if (!detection.isMagento) throw new BadRequestException(`A pasta escolhida não parece ser uma instalação Magento (${detection.confidence}% de confiança)`)
-    const { edition, version } = readVersion(this.rofs, root)
-    const ownVendors = ws.ownVendors.length ? ws.ownVendors : vendorsOf(this.rofs, root).map((v) => v.name)
-    this.update(ws, { magentoRoot: root, edition, version, ownVendors, status: 'ready', error: undefined })
+    const detection = detectTech(ws.tech, this.rofs, root)
+    if (!detection.match) {
+      throw new BadRequestException(`A pasta escolhida não parece ser ${techInfo(ws.tech).name} (${detection.confidence}% de confiança)`)
+    }
+    if (ws.tech === 'adobe-commerce') {
+      const { edition, version } = readVersion(this.rofs, root)
+      const ownVendors = ws.ownVendors.length ? ws.ownVendors : vendorsOf(this.rofs, root).map((v) => v.name)
+      this.update(ws, { root, edition, version, ownVendors, status: 'ready', error: undefined })
+    } else {
+      this.update(ws, { root, edition: detection.edition, version: detection.version, status: 'ready', error: undefined })
+    }
   }
 
-  createLocal(dir: string, name?: string) {
+  createLocal(dir: string, name?: string, tech: TechId = DEFAULT_TECH) {
     const root = path.resolve(dir)
     if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) throw new BadRequestException(`Pasta não encontrada: ${root}`)
     assertDataDirOutside(root)
     const ws: Workspace = {
       id: this.newId(name ?? path.basename(root)),
       name: name ?? path.basename(root),
+      tech,
       source: { type: 'local', path: root },
       checkoutDir: root,
       ownVendors: [],
@@ -136,24 +157,27 @@ export class WorkspacesService {
       createdAt: new Date().toISOString(),
     }
     this.workspaces.push(ws)
-    this.applyDetection(ws, detectMagento(this.rofs, root))
-    return { workspace: ws, detection: detectMagento(this.rofs, root) }
+    this.applyDetection(ws, detectTech(tech, this.rofs, root))
+    this.save()
+    return { workspace: ws, detection: detectTech(tech, this.rofs, root) }
   }
 
-  createGit(input: { url: string; branch?: string; name?: string; auth: GitAuth }) {
+  createGit(input: { url: string; branch?: string; name?: string; auth: GitAuth; tech?: TechId }) {
+    const tech = input.tech ?? DEFAULT_TECH
     const url = sanitizeUrl(input.url.trim())
-    const name = input.name ?? url.split('/').pop()?.replace(/\.git$/, '') ?? 'magento'
+    const name = input.name ?? url.split('/').pop()?.replace(/\.git$/, '') ?? 'projeto'
     const id = this.newId(name)
-    const dest = path.join(DIRS.repos, id)
+    const dest = path.join(techDirs(tech).repos, id)
     assertWritableTarget(dest)
     const job = this.jobs.create('clone', id, [
       { id: 'access', label: 'Verificando acesso ao repositório' },
       { id: 'clone', label: 'Clonando (somente leitura, depth 1)' },
-      { id: 'detect', label: 'Validando instalação Magento' },
+      { id: 'detect', label: `Validando a instalação de ${techInfo(tech).name}` },
     ])
     const ws: Workspace = {
       id,
       name,
+      tech,
       source: { type: 'git', url, branch: input.branch, authMethod: input.auth.method },
       checkoutDir: dest,
       ownVendors: [],
@@ -173,7 +197,7 @@ export class WorkspacesService {
         await this.git.clone(url, dest, { branch: input.branch, auth: input.auth, onLine: (l) => this.jobs.log(job, l) })
         this.jobs.step(job, 'clone', 'done')
         this.jobs.step(job, 'detect', 'running')
-        this.applyDetection(ws, detectMagento(this.rofs, dest))
+        this.applyDetection(ws, detectTech(tech, this.rofs, dest))
         this.jobs.step(job, 'detect', ws.status === 'error' ? 'error' : 'done', ws.status === 'needs-root' ? 'Escolha a pasta da instalação' : ws.version)
         if (ws.status === 'error') throw new Error(ws.error)
       } catch (err) {
@@ -184,17 +208,18 @@ export class WorkspacesService {
     return { workspace: ws, jobId: job.id }
   }
 
-  createZip(uploadedFile: string, originalName: string) {
+  createZip(uploadedFile: string, originalName: string, tech: TechId = DEFAULT_TECH) {
     const name = originalName.replace(/\.zip$/i, '')
     const id = this.newId(name)
-    const dest = path.join(DIRS.uploads, id)
+    const dest = path.join(techDirs(tech).uploads, id)
     const job = this.jobs.create('unzip', id, [
       { id: 'extract', label: 'Extraindo o .zip no diretório de dados' },
-      { id: 'detect', label: 'Validando instalação Magento' },
+      { id: 'detect', label: `Validando a instalação de ${techInfo(tech).name}` },
     ])
     const ws: Workspace = {
       id,
       name,
+      tech,
       source: { type: 'zip', fileName: originalName },
       checkoutDir: dest,
       ownVendors: [],
@@ -210,7 +235,7 @@ export class WorkspacesService {
         const files = await this.zip.extract(uploadedFile, dest, (n) => this.jobs.step(job, 'extract', 'running', `${n} arquivos`))
         this.jobs.step(job, 'extract', 'done', `${files} arquivos`)
         this.jobs.step(job, 'detect', 'running')
-        this.applyDetection(ws, detectMagento(this.rofs, dest))
+        this.applyDetection(ws, detectTech(tech, this.rofs, dest))
         this.jobs.step(job, 'detect', ws.status === 'error' ? 'error' : 'done', ws.version)
         if (ws.status === 'error') throw new Error(ws.error)
       } catch (err) {
@@ -223,16 +248,17 @@ export class WorkspacesService {
     return { workspace: ws, jobId: job.id }
   }
 
-  configure(id: string, input: { magentoRoot?: string; ownVendors?: string[]; name?: string }) {
+  configure(id: string, input: { root?: string; ownVendors?: string[]; name?: string }) {
     const ws = this.get(id)
-    if (input.magentoRoot) this.setRoot(ws, path.resolve(input.magentoRoot))
+    if (input.root) this.setRoot(ws, path.resolve(input.root))
     if (input.ownVendors) this.update(ws, { ownVendors: input.ownVendors.filter((v) => /^\w+$/.test(v)) })
     if (input.name) this.update(ws, { name: input.name.slice(0, 80) })
     return ws
   }
 
   detection(id: string) {
-    return detectMagento(this.rofs, this.get(id).checkoutDir)
+    const ws = this.get(id)
+    return detectTech(ws.tech, this.rofs, ws.checkoutDir)
   }
 
   async sync(id: string, auth: GitAuth) {
@@ -245,7 +271,7 @@ export class WorkspacesService {
   /** Removes Agentic Toolkit's own copies. A local source folder is never touched. */
   remove(id: string) {
     const ws = this.get(id)
-    const own = [path.join(DIRS.workspaces, id)]
+    const own = [path.join(techDirs(ws.tech).workspaces, id)]
     if (ws.source.type !== 'local') own.push(ws.checkoutDir)
     for (const dir of own) {
       assertWritableTarget(dir, ws.source.type === 'local' ? [ws.checkoutDir] : [])

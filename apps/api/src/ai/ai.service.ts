@@ -5,11 +5,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { MapStore } from '../analysis/map-store.service'
 import { OverviewService } from '../analysis/overview.service'
-import { DATA_DIR } from '../config/paths'
+import { CORE_DIR } from '../config/paths'
 import { CLAUDE_DENIED_TOOLS, CLAUDE_READONLY_TOOLS, CommandRunner } from '../readonly/command-runner.service'
 import { ReadOnlyFs } from '../readonly/readonly-fs.service'
 import { WorkspacesService } from '../workspaces/workspaces.service'
-import { executeTool, READONLY_TOOLS, SYSTEM_PROMPT } from './readonly-tools'
+import { executeTool, READONLY_TOOLS, systemPromptFor } from './readonly-tools'
 
 export type ProviderId = 'anthropic' | 'claude-code' | 'openai-compatible'
 
@@ -28,7 +28,7 @@ export interface AskResult {
   stopReason?: string
 }
 
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
+const SETTINGS_FILE = path.join(CORE_DIR, 'settings.json')
 const DEFAULTS: AiSettings = {
   provider: 'claude-code',
   anthropic: { model: 'claude-opus-5-5', effort: 'medium' },
@@ -143,7 +143,7 @@ export class AiService {
     } catch {
       summary = `Instalação: ${ws.name} · ${ws.edition ?? ''} ${ws.version ?? ''}`
     }
-    return { root, summary, map: this.maps.readMap(id), notes: this.maps.readAnnotations(id) }
+    return { root, summary, tech: ws.tech, map: this.maps.readMap(id), notes: this.maps.readAnnotations(id) }
   }
 
   async ask(id: string, question: string): Promise<AskResult> {
@@ -168,7 +168,7 @@ export class AiService {
       const response = await client.beta.messages.create({
         model: s.model,
         max_tokens: 16000,
-        system: SYSTEM_PROMPT,
+        system: systemPromptFor(ctx.tech),
         thinking: { type: 'adaptive' },
         output_config: { effort: s.effort },
         tools,
@@ -228,7 +228,7 @@ export class AiService {
       '--add-dir',
       mapsDir,
       '--append-system-prompt',
-      SYSTEM_PROMPT.replace(
+      systemPromptFor(this.workspaces.get(id).tech).replace(
         'Comece pelo mapa de integrações (search_map)',
         `Comece pelo mapa de integrações: ${path.join(mapsDir, `${id}.json`)} (JSON com items[]: id, kind, title, module, origin, zone, file, line, details) e as anotações em ${path.join(mapsDir, `${id}.annotations.json`)}; use Grep neles`,
       ),
@@ -259,7 +259,7 @@ export class AiService {
     const tools = READONLY_TOOLS.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }))
     type Msg = { role: string; content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }
     const messages: Msg[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPromptFor(ctx.tech) },
       { role: 'user', content: `${ctx.summary}\n\nPergunta: ${question}` },
     ]
     const toolCalls: AskResult['toolCalls'] = []

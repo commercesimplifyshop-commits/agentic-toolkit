@@ -1,14 +1,14 @@
-import type { Detection } from '../api'
+import { TECH_NAMES, type Detection } from '../api'
 
-/** Checklist proving (or not) that a folder is a Magento installation. */
+/** Checklist proving (or not) that a folder is an installation of the chosen technology. */
 export function DetectionView({ detection, onPickCandidate }: { detection: Detection; onPickCandidate?: (path: string) => void }) {
   return (
     <div>
       <div className="sf-row" style={{ marginBottom: 10 }}>
-        {detection.isMagento ? (
-          <span className="sf-badge green">✓ Instalação Magento reconhecida</span>
+        {detection.match ? (
+          <span className="sf-badge green">✓ Instalação de {TECH_NAMES[detection.tech]} reconhecida</span>
         ) : (
-          <span className="sf-badge red">✕ Não parece ser a raiz de uma instalação Magento</span>
+          <span className="sf-badge red">✕ Não parece ser a raiz de uma instalação de {TECH_NAMES[detection.tech]}</span>
         )}
         {detection.version && (
           <span className="sf-badge blue">
@@ -28,7 +28,7 @@ export function DetectionView({ detection, onPickCandidate }: { detection: Detec
       ))}
       {detection.candidates.length > 0 && (
         <div className="sf-callout orange" style={{ marginTop: 12 }}>
-          <strong>Encontramos uma instalação Magento numa subpasta:</strong>
+          <strong>Encontramos uma instalação de {TECH_NAMES[detection.tech]} numa subpasta:</strong>
           {detection.candidates.map((c) => (
             <div key={c.path} className="sf-row" style={{ marginTop: 8 }}>
               <span className="sf-mono" style={{ flex: 1 }}>

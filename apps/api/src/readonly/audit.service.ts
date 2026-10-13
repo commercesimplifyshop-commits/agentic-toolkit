@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import fs from 'node:fs'
 import path from 'node:path'
-import { DATA_DIR } from '../config/paths'
+import { CORE_DIR } from '../config/paths'
 
 export interface AuditEntry {
   at: string
@@ -20,7 +20,7 @@ const MAX_MEMORY = 500
 /** Append-only log of every action and of every blocked attempt. */
 @Injectable()
 export class AuditService {
-  private readonly file = path.join(DATA_DIR, 'audit.log')
+  private readonly file = path.join(CORE_DIR, 'audit.log')
   private readonly recent: AuditEntry[] = []
 
   record(entry: Omit<AuditEntry, 'at'>) {

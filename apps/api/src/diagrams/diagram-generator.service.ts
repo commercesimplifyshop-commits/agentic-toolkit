@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
+import type { TechId } from '../config/paths'
 import { AiService } from '../ai/ai.service'
 import { MapStore } from '../analysis/map-store.service'
 import { JobsService, type Job } from '../jobs/jobs.service'
@@ -13,6 +14,15 @@ export type Scenario = (typeof SCENARIOS)[number]
 
 export const MODEL_TYPES = ['c4-context', 'c4-container', 'c4-component', 'uml-class', 'uml-sequence', 'uml-state', 'flow', 'er'] as const
 export type ModelType = (typeof MODEL_TYPES)[number]
+
+const ARCHITECT: Record<TechId, string> = {
+  'adobe-commerce': 'Você é arquiteto de soluções Magento 2 / Adobe Commerce e desenha modelos de arquitetura.',
+  'salesforce-b2c': 'Você é arquiteto de soluções Salesforce B2C Commerce (SFCC) e desenha modelos de arquitetura.',
+}
+
+/** Salesforce B2C has its own scenario guide: the Magento marketplace/B2B scenarios do not apply */
+const SFCC_GUIDE =
+  'Projeto Salesforce B2C Commerce: considere a storefront (SFRA ou PWA Kit), os cartuchos e a ordem de precedência entre eles, controllers e pipelines, templates ISML, jobs, integrações (OCAPI, SCAPI e serviços), sites e a instância. Use só o que o código mostrar.'
 
 const SCENARIO_LABEL: Record<Scenario, string> = { b2c: 'B2C', b2b: 'B2B', d2c: 'D2C', marketplace: 'Marketplace', custom: '' }
 
@@ -103,11 +113,12 @@ export class DiagramGeneratorService {
 
   private async write(id: string, root: string, bin: string, input: { request: string; scenario: Scenario; type: ModelType }, job: Job, signal: AbortSignal): Promise<{ source: string; mode: 'code' | 'canvas' }> {
     const mapsDir = this.maps.dir(id)
+    const tech = this.workspaces.get(id).tech
     const guide = TYPE_GUIDE[input.type]
     const canvas = CANVAS_TYPES.includes(input.type)
     const common = [
-      'Você é arquiteto de soluções Magento 2 / Adobe Commerce e desenha modelos de arquitetura.',
-      SCENARIO_GUIDE[input.scenario],
+      ARCHITECT[tech],
+      tech === 'salesforce-b2c' ? SFCC_GUIDE : SCENARIO_GUIDE[input.scenario],
       guide.hint,
       'Regras:',
       '- Use o código (Read, Grep, Glob) para nomes reais de módulos, rotas e integrações da instalação. Quando o código não mostrar algo, use um rótulo genérico: não invente integrações.',

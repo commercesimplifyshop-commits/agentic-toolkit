@@ -7,7 +7,7 @@ description: Analisa as customizações de uma instalação Magento 2 já conect
 
 **Regra crítica: somente leitura.** Nunca edite, mova ou apague nada dentro da instalação Magento. Tudo o que você grava vai para o diretório de dados do Agentic Toolkit (`~/.agentic-toolkit`, ou `AGENTIC_TOOLKIT_DATA`).
 
-Argumentos: `[workspace-id] [zona]`. Sem id, liste as instalações com `curl -s http://127.0.0.1:4310/api/workspaces` (ou leia `~/.agentic-toolkit/workspaces.json`) e pergunte qual.
+Argumentos: `[workspace-id] [zona]`. Sem id, liste as instalações com `curl -s http://127.0.0.1:4310/api/workspaces` (ou leia `~/.agentic-toolkit/core/workspaces.json`) e pergunte qual.
 
 ## 1. Garantir que o mapa existe
 
@@ -18,15 +18,15 @@ curl -s -X POST http://127.0.0.1:4310/api/workspaces/<id>/analysis
 ```
 
 Arquivos (dentro do diretório de dados):
-- `workspaces/<id>/maps/<id>.json`: saída do extrator. Não edite à mão; é regenerado a cada análise.
-- `workspaces/<id>/maps/<id>.annotations.json`: as suas anotações. São preservadas entre análises.
+- `techs/adobe-commerce/workspaces/<id>/maps/<id>.json`: saída do extrator. Não edite à mão; é regenerado a cada análise.
+- `techs/adobe-commerce/workspaces/<id>/maps/<id>.annotations.json`: as suas anotações. São preservadas entre análises.
 
 ## 2. Ler o código em lotes
 
 Na raiz do repositório do Agentic Toolkit:
 
 ```bash
-node packages/analyzer/context.mjs <id> --maps-dir ~/.agentic-toolkit/workspaces/<id>/maps --zone <zona> --unannotated --max-lines 22 > <scratchpad>/ctx.md
+node packages/analyzer/context.mjs <id> --maps-dir ~/.agentic-toolkit/techs/adobe-commerce/workspaces/<id>/maps --zone <zona> --unannotated --max-lines 22 > <scratchpad>/ctx.md
 ```
 
 Comece por `outros`, depois `checkout`, `carrinho`, `admin`, `integracoes` e por fim o resto. Leia o arquivo gerado (em partes, se for grande).

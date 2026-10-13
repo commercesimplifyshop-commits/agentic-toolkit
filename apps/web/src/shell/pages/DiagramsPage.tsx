@@ -9,6 +9,7 @@ import { UsedBy } from '../links/ToolLinks'
 import { emptyGraph, mermaidToGraph, parseGraphSource, type GraphFamily } from '../diagrams/graph'
 import { renderMermaid } from '../diagrams/render'
 import { BLANK_SOURCE, KIND_LABEL, MAGENTO_TEMPLATES, TEMPLATES, type DiagramKind, type Template } from '../diagrams/templates'
+import { useShell } from '../store'
 
 const SCENARIOS: { id: string; label: string }[] = [
   { id: 'b2c', label: 'Magento B2C' },
@@ -172,6 +173,7 @@ function NewDiagram({
       setError((e as Error).message)
     }
   }
+  const tech = useShell((st) => st.workspaces.find((w) => w.id === workspaceId)?.tech)
   return (
     <div className="sf-docs-new" style={{ maxWidth: 900 }}>
       <div className="sf-page-head" style={{ marginBottom: 18 }}>
@@ -200,18 +202,22 @@ function NewDiagram({
         </button>
       </div>
 
-      <div className="sf-apic-section" style={{ marginTop: 26 }}>
-        Arquiteturas de referência Magento 2 (editáveis no canvas)
-      </div>
-      <div className="sf-diagram-templates">
-        {MAGENTO_TEMPLATES.map((t) => (
-          <button key={t.id} onClick={() => onPick(t)}>
-            <span className="sf-badge orange">Magento 2</span>
-            <strong>{t.label.replace('Magento 2 · ', '')}</strong>
-            <span>{t.hint}</span>
-          </button>
-        ))}
-      </div>
+      {tech !== 'salesforce-b2c' && (
+        <>
+          <div className="sf-apic-section" style={{ marginTop: 26 }}>
+            Arquiteturas de referência Magento 2 (editáveis no canvas)
+          </div>
+          <div className="sf-diagram-templates">
+            {MAGENTO_TEMPLATES.map((t) => (
+              <button key={t.id} onClick={() => onPick(t)}>
+                <span className="sf-badge orange">Magento 2</span>
+                <strong>{t.label.replace('Magento 2 · ', '')}</strong>
+                <span>{t.hint}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="sf-apic-section" style={{ marginTop: 22 }}>
         Modelos gerais

@@ -168,6 +168,8 @@ export class DocsService {
   // ---- generation ---------------------------------------------------------------------------
 
   generate(id: string, input: DocInput, regenerate?: string) {
+    // the documentation pipeline reads the Adobe Commerce integration map; Salesforce B2C has none yet
+    if (this.workspaces.get(id).tech !== 'adobe-commerce') throw new BadRequestException('A documentação gerada pelo Claude ainda está disponível só para Adobe Commerce')
     const bin = this.ai.claudeBinary()
     if (!bin) throw new BadRequestException('Claude Code não encontrado nesta máquina. A documentação usa o seu Claude Code conectado: instale-o ou informe o caminho em Configurações.')
     const root = this.workspaces.rootOf(id)

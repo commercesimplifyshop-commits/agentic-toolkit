@@ -5,7 +5,7 @@ description: Which Agentic Toolkit tools (diagrams, boards) a change needs, how 
 
 # Agentic Toolkit tools and links
 
-A change (OpenSpec `openspec/changes/<name>/`) can be linked to tools that live in Agentic Toolkit's data dir (`~/.agentic-toolkit/workspaces/<id>/`), never in the repository. The link table is `links.json` in that same dir.
+A change (OpenSpec `openspec/changes/<name>/`) can be linked to tools that live in Agentic Toolkit's data dir (`~/.agentic-toolkit/techs/<tecnologia>/workspaces/<id>/`), never in the repository. The link table is `links.json` in that same dir.
 
 ## Which tool for which need
 

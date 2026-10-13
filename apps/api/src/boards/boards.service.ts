@@ -25,7 +25,7 @@ export class BoardsService {
   constructor(private readonly workspaces: WorkspacesService) {}
 
   private protectedRoots(id: string) {
-    const root = this.workspaces.get(id).magentoRoot
+    const root = this.workspaces.get(id).root
     return root ? [root] : []
   }
 

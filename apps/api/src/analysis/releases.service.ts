@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import fs from 'node:fs'
 import path from 'node:path'
-import { DIRS } from '../config/paths'
+import { techDirs } from '../config/paths'
 
 const TTL_MS = 24 * 60 * 60 * 1000
 
@@ -36,7 +36,7 @@ export interface SupportInfo {
 /** Release facts from public magento/magento2 tags (cached for a day). */
 @Injectable()
 export class ReleasesService {
-  private readonly cacheFile = path.join(DIRS.cache, 'magento2-tags.json')
+  private readonly cacheFile = path.join(techDirs('adobe-commerce').cache, 'magento2-tags.json')
 
   private async tags(): Promise<{ tags: string[]; source: SupportInfo['source'] }> {
     try {

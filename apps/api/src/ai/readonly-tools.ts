@@ -1,3 +1,4 @@
+import type { TechId } from '../config/paths'
 import { ReadOnlyViolation } from '../readonly/path-guard'
 import type { ReadOnlyFs } from '../readonly/readonly-fs.service'
 
@@ -116,6 +117,14 @@ export function executeTool(
     if (err instanceof ReadOnlyViolation) return `Bloqueado pela regra de somente leitura: ${err.message}`
     return `Erro: ${(err as Error).message}`
   }
+}
+
+/** The chat's system prompt for a technology: same rules everywhere, the role and the first places to look change */
+export function systemPromptFor(tech: TechId): string {
+  if (tech === 'adobe-commerce') return SYSTEM_PROMPT
+  return SYSTEM_PROMPT.replace('Você é um engenheiro Magento 2 sênior', 'Você é um engenheiro Salesforce B2C Commerce (SFCC) sênior, com experiência em SFRA, cartuchos, templates ISML, jobs e OCAPI')
+    .replace('Comece pelo mapa de integrações (search_map) quando a pergunta for sobre APIs, plugins, observers, eventos ou fluxo de pedido; depois leia o código.', 'Comece pelos cartuchos e controllers (Grep em cartridges/) quando a pergunta for sobre rotas, fluxos ou integrações; depois leia o código.')
+    .replace('Diferencie o que é nativo do Magento, de terceiros e customizado.', 'Diferencie o que é da plataforma Salesforce, de cartuchos de terceiros e customizado.')
 }
 
 export const SYSTEM_PROMPT = `Você é um engenheiro Magento 2 sênior ajudando um colega a entender uma instalação que ele não conhece.

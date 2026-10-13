@@ -764,3 +764,11 @@
   .sf-ws-split { grid-template-columns: minmax(0, 1fr); }
   .sf-ws-editor, .sf-ws-preview { flex: none; height: 380px; }
 }
+
+/* ---- technology picker on the connect screen -------------------------------------------- */
+.sf-tech-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.sf-tech-card { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--sf-border); background: var(--sf-panel); color: var(--sf-muted); cursor: pointer; }
+.sf-tech-card strong { color: var(--sf-text); font-size: 14.5px; }
+.sf-tech-card span { font-size: 12.5px; line-height: 1.5; }
+.sf-tech-card.on { border-color: var(--sf-accent); background: var(--sf-panel-2); }
+.sf-tech-card:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 2px; }

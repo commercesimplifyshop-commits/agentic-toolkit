@@ -4,7 +4,7 @@ import http from 'node:http'
 import https from 'node:https'
 import path from 'node:path'
 import { MapStore } from '../analysis/map-store.service'
-import { DIRS } from '../config/paths'
+import { techDirs } from '../config/paths'
 import { AuditService } from '../readonly/audit.service'
 import { assertWritableTarget } from '../readonly/path-guard'
 import { ReadOnlyFs } from '../readonly/readonly-fs.service'
@@ -83,12 +83,12 @@ export class ApiClientService {
     const tag = ws.version?.match(/^\d+\.\d+\.\d+(-p\d+)?/)?.[0]
     if (!tag) return null
     const repoRel = isFramework ? `lib/internal/${parts.join('/')}.php` : `app/code/${parts.join('/')}.php`
-    const refDir = path.join(DIRS.reference, `magento2-${tag}`)
+    const refDir = path.join(techDirs('adobe-commerce').reference, `magento2-${tag}`)
     if (fs.existsSync(path.join(refDir, repoRel))) return tryRead(refDir, repoRel)
 
     const key = `${tag}:${repoRel}`
     if (this.sources.has(key)) return this.sources.get(key) ?? null
-    const cacheFile = path.join(DIRS.cache, 'core-src', tag, repoRel)
+    const cacheFile = path.join(techDirs('adobe-commerce').cache, 'core-src', tag, repoRel)
     assertWritableTarget(cacheFile, [root])
     if (fs.existsSync(cacheFile)) {
       const src = fs.readFileSync(cacheFile, 'utf8')

@@ -6,8 +6,11 @@ import type { NextFunction, Request, Response } from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DATA_DIR, ensureDataDirs, HOST, PORT } from './config/paths'
+import { migrateLayout } from './config/migrate-layout'
 
 async function bootstrap() {
+  // the copy from the first layout runs before the folders of the new layout are created
+  migrateLayout((message) => new Logger('Agentic Toolkit').log(message))
   ensureDataDirs()
   const { AppModule } = await import('./app.module')
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: true })

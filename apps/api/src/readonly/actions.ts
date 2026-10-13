@@ -276,6 +276,13 @@ export const ACTIONS = {
   'docs.cancel': { kind: 'data-write', methods: ['POST'], description: 'Cancela a geração ou publicação em andamento de uma documentação', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
   'docs.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Remove a cópia da documentação no Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
 
+  'techs.list': { kind: 'read', methods: ['GET'], description: 'Lista as tecnologias suportadas pela instalação do Agentic Toolkit' },
+  'sfcc.overview': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Visão geral de um projeto Salesforce B2C (cartuchos, controllers, templates, jobs, integrações e sites), lida do código, sem acessar a instância',
+    validate: requireWorkspace,
+  },
   'links.read': {
     kind: 'read',
     methods: ['GET'],

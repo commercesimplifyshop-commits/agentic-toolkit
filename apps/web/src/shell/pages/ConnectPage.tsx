@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, waitJob, type Detection, type GitAuth, type Job, type Workspace } from '../api'
+import { api, waitJob, type Detection, type GitAuth, type Job, type TechId, type TechInfo, type Workspace } from '../api'
 import { DetectionView } from '../components/DetectionView'
 import { FolderBrowser } from '../components/FolderBrowser'
 import { JobProgress } from '../components/JobProgress'
@@ -8,7 +8,7 @@ import { useShell } from '../store'
 
 type Source = 'local' | 'git' | 'zip'
 
-/** Onboarding: pick a source → validate it is Magento → choose own vendors → analyze. */
+/** Onboarding: pick a technology and a source → validate it → choose the project root → analyze. */
 export function ConnectPage() {
   const { id } = useParams()
   return (
@@ -23,7 +23,7 @@ export function ConnectPage() {
             </div>
             <div>
               <strong>Agentic Toolkit</strong>
-              <span>Entenda qualquer instalação Magento 2 lendo o código</span>
+              <span>Entenda a sua instalação lendo o código</span>
             </div>
           </div>
           {id ? <ConfigureStep id={id} /> : <SourceStep />}
@@ -49,7 +49,7 @@ function Steps({ current }: { current: 0 | 1 | 2 }) {
 function ReadOnlyNote() {
   return (
     <div className="sf-callout green" style={{ marginBottom: 20 }}>
-      <strong>Somente leitura.</strong> O Agentic Toolkit nunca altera o código Magento. Uma pasta local é lida no lugar; repositórios e .zip são copiados para o
+      <strong>Somente leitura.</strong> O Agentic Toolkit nunca altera o código. Uma pasta local é lida no lugar; repositórios e .zip são copiados para o
       diretório de dados do Agentic Toolkit e o push fica desativado. Arquivos de credenciais (<code>env.php</code>, <code>auth.json</code>, <code>.env</code>) são
       listados, mas nunca lidos.
     </div>
@@ -63,19 +63,30 @@ function SourceStep() {
   const workspaces = useShell((s) => s.workspaces)
   const refresh = useShell((s) => s.refreshWorkspaces)
   const [source, setSource] = useState<Source>('local')
+  const [tech, setTech] = useState<TechId>('adobe-commerce')
+  const [techs, setTechs] = useState<TechInfo[]>([])
 
   useEffect(() => {
     refresh().catch(() => undefined)
+    api.get<TechInfo[]>('/techs').then(setTechs).catch(() => undefined)
   }, [refresh])
 
   const connected = (ws: Workspace) => navigate(`/connect/${ws.id}`)
 
   return (
     <>
-      <h1>Conectar uma instalação Magento</h1>
-      <p className="lead">Aponte para o código de uma loja Magento 2 ou Adobe Commerce. O Agentic Toolkit valida que é uma instalação Magento, mapeia o que foi customizado e monta o dashboard.</p>
+      <h1>Conectar uma instalação</h1>
+      <p className="lead">Escolha a tecnologia e a origem do código. O Agentic Toolkit valida a instalação, lê o que foi customizado e monta a visão da solução.</p>
       <Steps current={0} />
       <ReadOnlyNote />
+      <div className="sf-tech-picker" role="radiogroup" aria-label="Tecnologia">
+        {techs.map((t) => (
+          <button key={t.id} type="button" role="radio" aria-checked={tech === t.id} className={`sf-tech-card ${tech === t.id ? 'on' : ''}`} onClick={() => setTech(t.id)}>
+            <strong>{t.name}</strong>
+            <span>{t.summary}</span>
+          </button>
+        ))}
+      </div>
       <div className="sf-card">
         <div className="sf-tabs">
           {(
@@ -90,9 +101,9 @@ function SourceStep() {
             </button>
           ))}
         </div>
-        {source === 'local' && <LocalSource onConnected={connected} />}
-        {source === 'git' && <GitSource onConnected={connected} />}
-        {source === 'zip' && <ZipSource onConnected={connected} />}
+        {source === 'local' && <LocalSource tech={tech} onConnected={connected} />}
+        {source === 'git' && <GitSource tech={tech} onConnected={connected} />}
+        {source === 'zip' && <ZipSource tech={tech} onConnected={connected} />}
       </div>
 
       {workspaces.length > 0 && (
@@ -122,7 +133,7 @@ function SourceStep() {
   )
 }
 
-function LocalSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
+function LocalSource({ tech, onConnected }: { tech: TechId; onConnected: (ws: Workspace) => void }) {
   const [path, setPath] = useState('')
   const [browsing, setBrowsing] = useState(false)
   const [detection, setDetection] = useState<Detection | null>(null)
@@ -134,7 +145,7 @@ function LocalSource({ onConnected }: { onConnected: (ws: Workspace) => void }) 
     setDetection(null)
     setBusy(true)
     try {
-      setDetection(await api.post<Detection>('/workspaces/inspect', { path: p }))
+      setDetection(await api.post<Detection>('/workspaces/inspect', { path: p, tech }))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -145,7 +156,7 @@ function LocalSource({ onConnected }: { onConnected: (ws: Workspace) => void }) 
   const connect = async (p: string) => {
     setBusy(true)
     try {
-      const r = await api.post<{ workspace: Workspace }>('/workspaces', { source: 'local', path: p })
+      const r = await api.post<{ workspace: Workspace }>('/workspaces', { source: 'local', path: p, tech })
       onConnected(r.workspace)
     } catch (e) {
       setError((e as Error).message)
@@ -166,13 +177,13 @@ function LocalSource({ onConnected }: { onConnected: (ws: Workspace) => void }) 
             Validar
           </button>
         </div>
-        <small>Pode ser a raiz do repositório: se o Magento estiver numa subpasta (ex.: magento2/), ele é encontrado.</small>
+        <small>Pode ser a raiz do repositório: se a instalação estiver numa subpasta (ex.: magento2/ ou storefront/), ela é encontrada.</small>
       </div>
       {busy && !detection && <span className="sf-spinner" />}
       {detection && (
         <>
           <DetectionView detection={detection} onPickCandidate={(p) => connect(p)} />
-          {detection.isMagento && (
+          {detection.match && (
             <div className="sf-row" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
               <button className="sf-btn accent" disabled={busy} onClick={() => connect(detection.path)}>
                 Conectar esta instalação →
@@ -197,7 +208,7 @@ function LocalSource({ onConnected }: { onConnected: (ws: Workspace) => void }) 
   )
 }
 
-function GitSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
+function GitSource({ tech, onConnected }: { tech: TechId; onConnected: (ws: Workspace) => void }) {
   const [url, setUrl] = useState('')
   const [branch, setBranch] = useState('')
   const [method, setMethod] = useState<GitAuth['method']>('system')
@@ -213,7 +224,7 @@ function GitSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
     setError('')
     const auth: GitAuth = method === 'token' ? { method, token, username: username || undefined } : method === 'ssh-key' ? { method, keyPath } : { method: 'system' }
     try {
-      const r = await api.post<{ workspace: Workspace }>('/workspaces', { source: 'git', url, branch, auth })
+      const r = await api.post<{ workspace: Workspace }>('/workspaces', { source: 'git', url, branch, auth, tech })
       setToken('') // the token only lived for this request
       onConnected(r.workspace)
     } catch (e) {
@@ -331,7 +342,7 @@ function TokenHelp({ host }: { host: string }) {
   )
 }
 
-function ZipSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
+function ZipSource({ tech, onConnected }: { tech: TechId; onConnected: (ws: Workspace) => void }) {
   const [over, setOver] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState('')
@@ -342,6 +353,7 @@ function ZipSource({ onConnected }: { onConnected: (ws: Workspace) => void }) {
     setError('')
     const form = new FormData()
     form.append('file', file)
+    form.append('tech', tech)
     // XHR for upload progress (fetch has no upload progress)
     const xhr = new XMLHttpRequest()
     xhr.open('POST', '/api/workspaces/upload')
@@ -433,10 +445,10 @@ function ConfigureStep({ id }: { id: string }) {
       .catch((e) => setError(e.message))
   }, [id, load, follow, navigate])
 
-  const pickRoot = async (magentoRoot: string) => {
+  const pickRoot = async (root: string) => {
     setError('')
     try {
-      await api.put(`/workspaces/${id}`, { magentoRoot })
+      await api.put(`/workspaces/${id}`, { root })
       await load()
     } catch (e) {
       setError((e as Error).message)
@@ -469,7 +481,7 @@ function ConfigureStep({ id }: { id: string }) {
     <>
       <h1>{ws.name}</h1>
       <p className="lead sf-mono" style={{ fontSize: 12.5 }}>
-        {ws.magentoRoot ?? ws.checkoutDir}
+        {ws.root ?? ws.checkoutDir}
       </p>
       <Steps current={ws.status === 'connecting' || ws.status === 'needs-root' ? 1 : 2} />
 
@@ -483,8 +495,8 @@ function ConfigureStep({ id }: { id: string }) {
 
       {ws.status === 'needs-root' && detection && (
         <div className="sf-card">
-          <h2>Onde está o Magento?</h2>
-          <span className="sub">A raiz da origem não é uma instalação Magento, mas encontramos candidatas.</span>
+          <h2>Onde está o projeto?</h2>
+          <span className="sub">A raiz da origem não é a instalação escolhida, mas encontramos candidatas.</span>
           <DetectionView detection={detection} onPickCandidate={pickRoot} />
         </div>
       )}

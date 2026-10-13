@@ -43,12 +43,28 @@ export const api = {
 
 export type GitAuth = { method: 'system' } | { method: 'token'; token: string; username?: string } | { method: 'ssh-key'; keyPath: string }
 
+/** Technologies the toolkit supports; mirrors apps/api/src/config/paths.ts */
+export type TechId = 'adobe-commerce' | 'salesforce-b2c'
+
+export const TECH_NAMES: Record<TechId, string> = {
+  'adobe-commerce': 'Adobe Commerce',
+  'salesforce-b2c': 'Salesforce B2C Commerce',
+}
+
+export interface TechInfo {
+  id: TechId
+  name: string
+  vendor: string
+  summary: string
+}
+
 export interface Workspace {
   id: string
   name: string
+  tech: TechId
   source: { type: 'local'; path: string } | { type: 'git'; url: string; branch?: string; authMethod: string } | { type: 'zip'; fileName: string }
   checkoutDir: string
-  magentoRoot?: string
+  root?: string
   edition?: string
   version?: string
   ownVendors: string[]
@@ -69,7 +85,9 @@ export interface DetectionCheck {
 
 export interface Detection {
   path: string
-  isMagento: boolean
+  /** The folder is an installation of `tech` */
+  match: boolean
+  tech: TechId
   confidence: number
   edition?: string
   version?: string

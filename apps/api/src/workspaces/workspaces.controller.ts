@@ -3,10 +3,17 @@ import { FileInterceptor } from '@nestjs/platform-express'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { diskStorage } from 'multer'
-import { DIRS } from '../config/paths'
+import { DEFAULT_TECH, isTechId, STAGING_DIR, type TechId } from '../config/paths'
 import { Action } from '../readonly/actions'
 import type { GitAuth } from './git.service'
 import { WorkspacesService } from './workspaces.service'
+
+/** Technology chosen on the setup screen; absent means Adobe Commerce, as in the first version */
+const parseTech = (v?: string): TechId => {
+  if (v === undefined || v === '') return DEFAULT_TECH
+  if (!isTechId(v)) throw new BadRequestException('Tecnologia não suportada')
+  return v
+}
 
 @Controller('workspaces')
 export class WorkspacesController {
@@ -26,34 +33,35 @@ export class WorkspacesController {
 
   @Post('inspect')
   @Action('workspaces.inspect')
-  inspect(@Body() body: { path: string }) {
-    return this.workspaces.inspect(body.path)
+  inspect(@Body() body: { path: string; tech?: string }) {
+    return this.workspaces.inspect(body.path, parseTech(body.tech))
   }
 
   @Post()
   @Action('workspaces.create')
-  create(@Body() body: { source: 'local' | 'git'; path?: string; url?: string; branch?: string; name?: string; auth?: GitAuth }) {
-    if (body.source === 'local') return this.workspaces.createLocal(body.path!, body.name)
-    return this.workspaces.createGit({ url: body.url!, branch: body.branch || undefined, name: body.name, auth: body.auth ?? { method: 'system' } })
+  create(@Body() body: { source: 'local' | 'git'; tech?: string; path?: string; url?: string; branch?: string; name?: string; auth?: GitAuth }) {
+    const tech = parseTech(body.tech)
+    if (body.source === 'local') return this.workspaces.createLocal(body.path!, body.name, tech)
+    return this.workspaces.createGit({ url: body.url!, branch: body.branch || undefined, name: body.name, auth: body.auth ?? { method: 'system' }, tech })
   }
 
   @Post('upload')
   @Action('workspaces.upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({ destination: DIRS.uploads, filename: (_req, _file, cb) => cb(null, `${randomUUID()}.zip`) }),
+      storage: diskStorage({ destination: STAGING_DIR, filename: (_req, _file, cb) => cb(null, `${randomUUID()}.zip`) }),
       limits: { fileSize: 3 * 1024 ** 3 },
       fileFilter: (_req, file, cb) => cb(null, /\.zip$/i.test(file.originalname)),
     }),
   )
-  upload(@UploadedFile() file?: Express.Multer.File) {
+  upload(@UploadedFile() file?: Express.Multer.File, @Body() body?: { tech?: string }) {
     if (!file) throw new BadRequestException('Envie um arquivo .zip')
-    return this.workspaces.createZip(path.resolve(file.path), file.originalname)
+    return this.workspaces.createZip(path.resolve(file.path), file.originalname, parseTech(body?.tech))
   }
 
   @Put(':id')
   @Action('workspaces.configure')
-  configure(@Param('id') id: string, @Body() body: { magentoRoot?: string; ownVendors?: string[]; name?: string }) {
+  configure(@Param('id') id: string, @Body() body: { root?: string; ownVendors?: string[]; name?: string }) {
     return this.workspaces.configure(id, body)
   }
 

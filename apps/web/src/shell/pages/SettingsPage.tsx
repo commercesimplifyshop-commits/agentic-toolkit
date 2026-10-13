@@ -171,7 +171,7 @@ function WorkspaceSettings() {
   return (
     <div className="sf-card">
       <h2>Esta instalação</h2>
-      <span className="sub sf-mono">{ws.magentoRoot}</span>
+      <span className="sub sf-mono">{ws.root}</span>
       <div className="sf-field">
         <label>Nome</label>
         <div className="sf-row">

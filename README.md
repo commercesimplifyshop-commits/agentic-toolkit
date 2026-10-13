@@ -94,6 +94,27 @@ Em **Ferramentas & plugins → Quadro branco** você rascunha fluxos, arquitetur
 
 Cada instalação tem os seus quadros, salvos automaticamente em `~/.agentic-toolkit` (nunca no repositório). Fontes e traduções do Excalidraw são servidas pelo próprio Agentic Toolkit, então o quadro funciona sem internet.
 
+## Tecnologias suportadas
+
+Na conexão você escolhe a tecnologia da instalação. Cada uma tem a sua detecção, a sua visão geral e o seu menu.
+
+- **Adobe Commerce** (Magento 2): módulos, APIs, plugins, observers, crons, filas e rotas, com a análise completa do extrator.
+- **Salesforce B2C Commerce** (SFCC): lê o projeto com `cartridges/`: cartuchos, controllers SFRA e pipelines `.ds`, templates ISML, hooks, jobs (`<job job-id>`), serviços (`LocalServiceRegistry.createService`), sites e atributos customizados em `meta/`. A seção Instância mostra o hostname e o `code-version` do `dw.json`, e avisa se há credenciais guardadas no projeto, sem mostrar os valores.
+
+Limites atuais do Salesforce B2C: a documentação gerada pelo Claude ainda não está disponível (ela depende do mapa de integrações do Magento), e as ações na instância (enviar código, rodar jobs, consultar OCAPI) ainda não existem, porque dependem de um cofre de credenciais.
+
+## Onde os dados ficam no computador
+
+```
+~/.agentic-toolkit/
+  core/                  workspaces.json, audit.log, settings.json (valem para todas as tecnologias)
+  staging/               .zip recebido antes de a tecnologia ser conhecida
+  techs/adobe-commerce/  repos/, uploads/, workspaces/<id>/, reference/, cache/
+  techs/salesforce-b2c/  repos/, uploads/, workspaces/<id>/
+```
+
+Na primeira execução, os dados da versão anterior são copiados para `techs/adobe-commerce/` e os originais são mantidos. A pasta do código do cliente nunca é alterada.
+
 ## Regra crítica: somente leitura
 
 O Agentic Toolkit **nunca escreve no código Magento**, e isso é garantido por código, não só por convenção:
@@ -196,7 +217,7 @@ Na tela "Conectar", aba "Repositório Git", há três formas de acesso:
    - **Azure DevOps:** PAT com *Code: Read*.
 3. **Deploy key SSH somente leitura.** Uma chave dedicada, cadastrada no repositório sem permissão de escrita. Informe o caminho da chave privada.
 
-O clone é superficial (`--depth 1`), fica em `~/.agentic-toolkit/repos`, com `core.symlinks=false` e push desativado. "Buscar atualizações" faz só `git fetch`.
+O clone é superficial (`--depth 1`), fica em `~/.agentic-toolkit/techs/<tecnologia>/repos`, com `core.symlinks=false` e push desativado. "Buscar atualizações" faz só `git fetch`.
 
 ## Inteligência artificial
 

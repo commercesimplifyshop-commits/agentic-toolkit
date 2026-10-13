@@ -61,7 +61,47 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
   },
 ]
 
-const TITLES: Record<string, string> = Object.fromEntries(SECTIONS.flatMap((s) => s.items.map((i) => [i.to, i.label])))
+/** Salesforce B2C menu: its own architecture, and the same planning tools under Desenvolvimento */
+const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
+  {
+    items: [
+      { to: '', label: 'Visão geral', icon: '◫' },
+      { to: 'ask', label: 'Pergunte ao código', icon: '✦' },
+    ],
+  },
+  {
+    title: 'Desenvolvimento',
+    items: [
+      { to: 'code', label: 'Explorador de código', icon: '{ }' },
+      { to: 'diagrams', label: 'Diagramas de arquitetura', icon: '⬡' },
+      { to: 'board', label: 'Quadro branco', icon: '✎' },
+      { to: 'openspec', label: 'OpenSpec', icon: '◎' },
+      { to: 'api-client', label: 'Simulador de API', icon: '➤' },
+    ],
+  },
+  {
+    title: 'Arquitetura',
+    items: [
+      { to: 'sfcc/cartridges', label: 'Cartuchos & dependências', icon: '▦' },
+      { to: 'sfcc/controllers', label: 'Controllers & rotas', icon: '⌁' },
+      { to: 'sfcc/templates', label: 'Templates ISML', icon: '▤' },
+      { to: 'sfcc/jobs', label: 'Jobs & agendamentos', icon: '◷' },
+      { to: 'sfcc/services', label: 'Integrações & serviços', icon: '⇄' },
+      { to: 'sfcc/sites', label: 'Sites & atributos', icon: '◉' },
+    ],
+  },
+  {
+    title: 'Instância',
+    items: [{ to: 'sfcc/instance', label: 'Perfil da instância', icon: '☁' }],
+  },
+]
+
+/** Adobe Commerce keeps its own menu; the shared sections are added to both */
+function sectionsOf(tech?: string) {
+  return tech === 'salesforce-b2c' ? SFCC_SECTIONS : SECTIONS
+}
+
+const TITLES: Record<string, string> = Object.fromEntries([...SECTIONS, ...SFCC_SECTIONS].flatMap((s) => s.items.map((i) => [i.to, i.label])))
 
 const COLLAPSE_KEY = 'agentic-toolkit.sidebarCollapsed'
 
@@ -141,7 +181,7 @@ export function Layout() {
           </button>
         </div>
         <div className="sf-side-scroll">
-          {SECTIONS.map((section, i) => (
+          {sectionsOf(ws?.tech).map((section, i) => (
             <div key={i}>
               {section.title && <div className="sf-side-section">{section.title}</div>}
               {section.items.map((item) => {
