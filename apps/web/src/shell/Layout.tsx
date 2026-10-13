@@ -152,7 +152,7 @@ export function Layout() {
   }, [loaded, ws, id, navigate, loadOverview])
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
-  const title = TITLES[sub] ?? (sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
+  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
   const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams'].includes(sub)
 
   return (
@@ -172,6 +172,9 @@ export function Layout() {
           ))}
         <Link to="/connect" className="sf-ws-add" title="Conectar outra instalação">
           +
+        </Link>
+        <Link to={`/w/${id}/atualizacao`} className="sf-ws-add sf-rail-foot" title="Atualização do dia" aria-label="Atualização do dia">
+          ◷
         </Link>
       </aside>
 

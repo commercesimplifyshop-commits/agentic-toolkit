@@ -1,21 +1,16 @@
 import { Marked } from 'marked'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { TextEditor } from '../editor/TextEditor'
 import { ToolsPanel, type ToolResult } from '../links/ToolLinks'
+import { DeleteChangeModal } from './OpenSpecWrite'
+import { ChangeFileTree } from './OpenSpecExplorer'
+import { PromptModal } from './OpenSpecPage'
+import { CHANGE_LABEL, CHANGE_TONE, SPEC_LABEL, SPEC_TONE, type ChangeDetail, type Overview } from './openspec-model'
 
 /** Markdown from a change rendered without raw HTML (escaped), so nothing in a proposal can run as markup. */
 const md = new Marked({ gfm: true, renderer: { html: ({ text }: { text: string }) => text.replace(/</g, '&lt;').replace(/>/g, '&gt;') } })
-
-interface ChangeDetail {
-  id: string
-  /** Folder of the change, relative to the installation root */
-  dir: string
-  proposal: string
-  tasks: { raw: string }
-  deltas: { capability: string; content: string }[]
-}
 
 interface FileState {
   path: string
@@ -86,46 +81,81 @@ function useOpenSpecFile(id: string, path: string) {
 
 type OpenFile = ReturnType<typeof useOpenSpecFile>
 
+/**
+ * The workspace of one change or one spec: the folder of the item on the left, the file being
+ * edited with its preview in the middle, and Claude's revision on the right. The item's actions
+ * (status, implement, verify, archive, delete) sit in the header.
+ */
 export function OpenSpecChangePage() {
   const { id = '', name = '' } = useParams()
+  const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
   const [detail, setDetail] = useState<ChangeDetail | null>(null)
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [active, setActive] = useState('')
   const [tab, setTab] = useState<'claude' | 'ferramentas'>('claude')
+  const [prompt, setPrompt] = useState<{ title: string; text: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [msg, setMsg] = useState<{ tone: 'red' | 'green' | 'orange'; text: string } | null>(null)
 
-  const load = useCallback(
-    () =>
-      api
-        .get<ChangeDetail>(`/workspaces/${id}/openspec/change?name=${encodeURIComponent(name)}`)
-        .then((d) => {
-          setDetail(d)
-          setActive((a) => a || `${d.dir}/proposal.md`)
-          setLoadError('')
-        })
-        .catch((e) => setLoadError((e as Error).message)),
-    [id, name],
-  )
+  const load = useCallback(() => {
+    Promise.all([
+      api.get<ChangeDetail>(`/workspaces/${id}/openspec/change?name=${encodeURIComponent(name)}`),
+      api.get<Overview>(`/workspaces/${id}/openspec`),
+    ])
+      .then(([d, o]) => {
+        setDetail(d)
+        setOverview(o)
+        setLoadError('')
+      })
+      .catch((e) => setLoadError((e as Error).message))
+  }, [id, name])
 
   useEffect(() => {
     load()
   }, [load])
 
+  const card = overview?.changes.find((c) => c.id === name)
+  const folder = detail?.dir ?? ''
+  const abs = (rel: string) => `${folder}/${rel}`
+  const active = params.get('file') ?? (detail ? abs('proposal.md') : '')
   const file = useOpenSpecFile(id, active)
 
-  const files = detail
-    ? [
-        { label: 'Proposta', path: `${detail.dir}/proposal.md` },
-        { label: 'Tarefas', path: `${detail.dir}/tasks.md` },
-        ...detail.deltas.map((d) => ({ label: `Spec: ${d.capability}`, path: `${detail.dir}/specs/${d.capability}/spec.md` })),
-      ]
-    : []
-
-  // Switching files with unsaved text asks first, so the text is never dropped silently
   const open = (path: string) => {
     if (path === active) return
     if (file.dirty && !window.confirm('Descartar as alterações não salvas deste arquivo?')) return
-    setActive(path)
+    setParams({ file: path }, { replace: true })
   }
+
+  const askPrompt = async (kind: string) => {
+    try {
+      setPrompt(await api.get<{ title: string; text: string }>(`/workspaces/${id}/openspec/prompt?kind=${kind}&change=${encodeURIComponent(name)}`))
+    } catch (e) {
+      setMsg({ tone: 'red', text: (e as Error).message })
+    }
+  }
+
+  const setStatus = async (status: string | null) => {
+    try {
+      await api.put(`/workspaces/${id}/openspec/status`, { kind: 'change', item: name, status })
+      load()
+    } catch (e) {
+      setMsg({ tone: 'red', text: (e as Error).message })
+    }
+  }
+
+  const skipSpecs = async () => {
+    try {
+      await api.post(`/workspaces/${id}/openspec/change/skip`, { name, skip: true })
+      setMsg({ tone: 'green', text: 'Marcada como mudança sem spec.' })
+      load()
+    } catch (e) {
+      setMsg({ tone: 'red', text: (e as Error).message })
+    }
+  }
+
+  if (loadError) return <div className="sf-page"><div className="sf-callout red">{loadError}</div></div>
+  if (!detail || !overview) return <div className="sf-page"><span className="sf-spinner" /></div>
 
   return (
     <div className="sf-page sf-ws">
@@ -133,25 +163,60 @@ export function OpenSpecChangePage() {
         <Link to={`/w/${id}/openspec`} className="sf-link">
           ← OpenSpec
         </Link>
-        <h2 className="sf-ws-title">{name}</h2>
+        <h2 className="sf-ws-title">{card?.title ?? name}</h2>
+        {card && <span className={`sf-badge ${CHANGE_TONE[card.status]}`}>{CHANGE_LABEL[card.status]}</span>}
+        <span style={{ flex: 1 }} />
+        <select className="sf-input sf-ws-status" value={card?.manualStatus ?? ''} onChange={(e) => setStatus(e.target.value || null)} aria-label="Status da mudança">
+          <option value="">Status automático (pelas tarefas)</option>
+          <option value="revisao">Em revisão</option>
+          <option value="impedida">Impedida</option>
+        </select>
+        <button className="sf-btn small accent" onClick={() => askPrompt('apply')}>
+          ✦ Implementar
+        </button>
+        <button className="sf-btn small" onClick={() => askPrompt('validate')}>
+          Verificar
+        </button>
+        <button className="sf-btn small" onClick={() => askPrompt('archive')}>
+          Arquivar
+        </button>
+        <button className="sf-btn small danger" onClick={() => setDeleting(true)}>
+          Excluir
+        </button>
       </div>
 
-      {loadError && <div className="sf-callout red">{loadError}</div>}
-      {!detail && !loadError && <span className="sf-spinner" />}
+      {card?.validation && !card.validation.valid && (
+        <div className="sf-callout red">
+          <b>Erros de validação</b>
+          {card.validation.issues.map((i, k) => (
+            <div key={k} style={{ marginTop: 4 }}>
+              {i.message}
+            </div>
+          ))}
+          {card.validation.issues.some((i) => /at least one delta/i.test(i.message)) && (
+            <div className="sf-row" style={{ marginTop: 10, flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: 12.5 }}>Sem specs alteradas. Se for documentação, refatoração ou ferramentas, marque-a assim:</span>
+              <button className="sf-btn small" onClick={skipSpecs}>
+                Marcar como sem mudança de spec
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {msg && (
+        <div className={`sf-callout ${msg.tone}`} style={{ fontSize: 13 }}>
+          {msg.text}
+        </div>
+      )}
 
       {detail && (
         <div className="sf-ws-body">
-          <nav className="sf-ws-nav" aria-label="Arquivos da mudança">
-            {files.map((f) => (
-              <button key={f.path} className={active === f.path ? 'on' : ''} onClick={() => open(f.path)}>
-                {f.label}
-              </button>
-            ))}
-            {!detail.deltas.length && <span className="sf-faint" style={{ fontSize: 12, padding: '4px 10px' }}>Sem specs alteradas.</span>}
-          </nav>
+          <aside className="sf-ws-tree">
+            <ChangeFileTree dir={folder} name={name} files={detail.files} active={active} onSelect={open} />
+          </aside>
 
           <section className="sf-ws-main">
-            <FileEditor path={active} f={file} />
+            {active && <FileEditor path={active} f={file} />}
           </section>
 
           <aside className="sf-ws-side">
@@ -164,10 +229,121 @@ export function OpenSpecChangePage() {
               </button>
             </div>
             {tab === 'claude' && <RevisePanel key={active} id={id} change={name} path={active} f={file} onApplied={load} />}
-            {tab === 'ferramentas' && <ToolsPanel workspaceId={id} change={name} />}
+            {tab === 'ferramentas' && <ToolsPanel workspaceId={id} change={name} onChanged={load} />}
           </aside>
         </div>
       )}
+
+      {prompt && <PromptModal prompt={prompt} onClose={() => setPrompt(null)} />}
+      {deleting && (
+        <DeleteChangeModal
+          id={id}
+          name={name}
+          onClose={() => setDeleting(false)}
+          onDone={() => navigate(`/w/${id}/openspec`)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** A main spec: its file on the left (the same workspace model), the editor and preview, and Claude's revision. */
+export function OpenSpecSpecPage() {
+  const { id = '' } = useParams()
+  const [params] = useSearchParams()
+  const cap = params.get('cap') ?? ''
+  const [overview, setOverview] = useState<Overview | null>(null)
+  const [error, setError] = useState('')
+  const [msg, setMsg] = useState<{ tone: 'red' | 'green' | 'orange'; text: string } | null>(null)
+
+  const load = useCallback(() => {
+    api
+      .get<Overview>(`/workspaces/${id}/openspec`)
+      .then(setOverview)
+      .catch((e) => setError((e as Error).message))
+  }, [id])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const card = overview?.specs.find((s) => s.id === cap)
+  const path = overview && cap ? `${overview.dir}/specs/${cap}/spec.md` : ''
+  const file = useOpenSpecFile(id, path)
+
+  const setStatus = async (status: string | null) => {
+    try {
+      await api.put(`/workspaces/${id}/openspec/status`, { kind: 'spec', item: cap, status })
+      load()
+    } catch (e) {
+      setMsg({ tone: 'red', text: (e as Error).message })
+    }
+  }
+
+  if (error) return <div className="sf-page"><div className="sf-callout red">{error}</div></div>
+  if (!overview) return <div className="sf-page"><span className="sf-spinner" /></div>
+  if (!card) {
+    // a spec that exists only as a change's delta is reached from that change
+    const touched = overview.changes.filter((c) => c.deltas.some((d) => d.capability === cap))
+    return (
+      <div className="sf-page">
+        <div className="sf-callout orange">
+          <b>{cap || '(sem nome)'}</b> ainda não está em openspec/specs.{' '}
+          {touched.length
+            ? touched.map((c) => (
+                <Link key={c.id} to={`/w/${id}/openspec/change/${encodeURIComponent(c.id)}`} style={{ marginLeft: 8 }}>
+                  ver na mudança {c.id}
+                </Link>
+              ))
+            : 'Nenhuma mudança a alterna.'}
+        </div>
+        <Link to={`/w/${id}/openspec`} className="sf-link">← voltar ao OpenSpec</Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="sf-page sf-ws">
+      <div className="sf-ws-head">
+        <Link to={`/w/${id}/openspec`} className="sf-link">
+          ← OpenSpec
+        </Link>
+        <h2 className="sf-ws-title sf-mono">{cap}</h2>
+        <span className={`sf-badge ${SPEC_TONE[card.status]}`}>{SPEC_LABEL[card.status]}</span>
+        <span className="sf-faint" style={{ fontSize: 12.5 }}>
+          {card.requirements} requisitos · {card.scenarios} cenários
+          {card.changes.length ? ` · alterada por ${card.changes.join(', ')}` : ''}
+        </span>
+        <span style={{ flex: 1 }} />
+        <select className="sf-input sf-ws-status" value={card.manualStatus ?? ''} onChange={(e) => setStatus(e.target.value || null)} aria-label="Status da spec">
+          <option value="">Status automático</option>
+          <option value="rascunho">Rascunho</option>
+          <option value="aprovada">Aprovada</option>
+          <option value="obsoleta">Obsoleta</option>
+        </select>
+      </div>
+
+      {card.withoutScenario > 0 && <div className="sf-callout orange">{card.withoutScenario} requisito(s) sem cenário.</div>}
+      {msg && (
+        <div className={`sf-callout ${msg.tone}`} style={{ fontSize: 13 }}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="sf-ws-body">
+        <aside className="sf-ws-tree">
+          <ChangeFileTree dir={`${overview.dir}/specs/${cap}`} name={cap} files={['spec.md']} active={path} onSelect={() => undefined} />
+        </aside>
+        <section className="sf-ws-main">
+          <FileEditor path={path} f={file} />
+        </section>
+        <aside className="sf-ws-side">
+          <div className="sf-tabs">
+            <button className="sf-tab on">✦ Editar com Claude</button>
+          </div>
+          <RevisePanel key={path} id={id} change="" path={path} f={file} onApplied={load} />
+        </aside>
+      </div>
     </div>
   )
 }
@@ -250,7 +426,7 @@ function RevisePanel({ id, change, path, f, onApplied }: { id: string; change: s
     try {
       await api.put(`/workspaces/${id}/openspec/file`, { path, content: revision.text, expectedSha: revision.sha })
       let created: ToolResult[] = []
-      if (revision.tools.length) {
+      if (change && revision.tools.length) {
         const r = await api.post<{ results: ToolResult[] }>(`/workspaces/${id}/links/create`, { change, tools: revision.tools })
         created = r.results
       }

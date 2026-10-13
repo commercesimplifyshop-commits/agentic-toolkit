@@ -97,6 +97,9 @@ export function OverviewPage() {
           </p>
         </div>
         <div className="sf-actions">
+          <Link className="sf-btn" to={`/w/${id}/atualizacao`} title="Boletins de segurança e novidades do dia">
+            ◷ Atualização do dia
+          </Link>
           <Link className="sf-btn" to={`/w/${id}/ask`}>
             ✦ Perguntar à IA
           </Link>

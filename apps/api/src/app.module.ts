@@ -20,6 +20,9 @@ import { OpenSpecAuthoringService } from './openspec/openspec-authoring.service'
 import { SfccController } from './techs/sfcc/sfcc.controller'
 import { SfccService } from './techs/sfcc/sfcc.service'
 import { TechsController } from './techs/techs.controller'
+import { NewsController } from './news/news.controller'
+import { NewsService } from './news/news.service'
+import { SecurityBulletinTopic } from './news/security-bulletin.topic'
 import { LinksController } from './links/links.controller'
 import { LinksService } from './links/links.service'
 import { LinksAssistService } from './links/links-assist.service'
@@ -45,7 +48,7 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
@@ -75,6 +78,8 @@ import { ZipService } from './workspaces/zip.service'
     LinksService,
     LinksAssistService,
     SfccService,
+    NewsService,
+    SecurityBulletinTopic,
   ],
 })
 export class AppModule {}

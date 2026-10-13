@@ -49,7 +49,8 @@
 .sf-ws-avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 15px; background: var(--sf-panel-2); border: 1px solid var(--sf-border); color: var(--sf-muted); position: relative; }
 .sf-ws-avatar.active { background: var(--sf-accent); color: #fff; border-color: transparent; }
 .sf-ws-avatar:hover { border-color: var(--sf-faint); }
-.sf-ws-add { width: 40px; height: 40px; border-radius: 50%; border: 1px dashed var(--sf-faint); color: var(--sf-muted); display: grid; place-items: center; font-size: 20px; margin-top: auto; }
+.sf-ws-add { width: 40px; height: 40px; border-radius: 50%; border: 1px dashed var(--sf-faint); color: var(--sf-muted); display: grid; place-items: center; font-size: 20px; flex: none; }
+.sf-rail-foot { margin-top: auto; }
 .sf-ws-add:hover { color: var(--sf-text); border-color: var(--sf-text); }
 
 /* ---- sidebar ------------------------------------------------------------------ */
@@ -732,7 +733,7 @@
 .sf-ws { display: flex; flex-direction: column; gap: 12px; max-width: none; height: calc(100vh - 48px); padding-bottom: 16px; box-sizing: border-box; }
 .sf-ws-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .sf-ws-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--sf-text); overflow-wrap: anywhere; }
-.sf-ws-body { display: grid; grid-template-columns: 170px minmax(0, 1fr) 320px; gap: 14px; flex: 1; min-height: 0; align-items: stretch; }
+.sf-ws-body { display: grid; grid-template-columns: 250px minmax(0, 1fr) 320px; gap: 14px; flex: 1; min-height: 0; align-items: stretch; }
 .sf-ws-nav { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; }
 .sf-ws-nav button { text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--sf-muted); cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }
 .sf-ws-nav button:hover { background: var(--sf-hover); color: var(--sf-text); }
@@ -804,3 +805,119 @@
 .sf-tut-request { margin: 8px 0 12px; padding: 10px 14px; border-left: 3px solid var(--sf-accent); background: var(--sf-panel-2); border-radius: 0 10px 10px 0; color: var(--sf-text); font-size: 14px; }
 .sf-tut-pitfalls { margin: 0; padding-left: 20px; color: var(--sf-muted); font-size: 13.5px; line-height: 1.65; }
 @media (prefers-reduced-motion: reduce) { .sf-tut-edge.live i { animation: none; left: 14px; } }
+
+/* ---- OpenSpec: file tree on the left, the views on the right ---------------------------- */
+.sf-ospage { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 18px; align-items: start; }
+.sf-ospage-main { min-width: 0; }
+.sf-ostree { position: sticky; top: 12px; max-height: calc(100vh - 110px); overflow-y: auto; border: 1px solid var(--sf-border); border-radius: 12px; background: var(--sf-panel); padding: 8px 6px; }
+.sf-ostree-tree { font-size: 12.5px; }
+.sf-ostree-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 7px; color: var(--sf-muted); min-width: 0; text-decoration: none; }
+.sf-ostree-root { color: var(--sf-text); font-weight: 600; font-family: var(--sf-mono); }
+.sf-ostree-change { color: var(--sf-text); }
+.sf-ostree-chev { background: none; border: 0; color: var(--sf-faint); cursor: pointer; width: 16px; padding: 0; }
+.sf-ostree-name { background: none; border: 0; color: var(--sf-text); cursor: pointer; font-family: var(--sf-mono); font-size: 12.5px; text-align: left; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; }
+.sf-ostree-name:hover { color: var(--sf-accent); }
+.sf-ostree-badge { font-size: 10.5px; padding: 2px 7px; flex: none; }
+.sf-ostree-children { margin-left: 14px; border-left: 1px dashed var(--sf-border); padding-left: 4px; }
+.sf-ostree-file:hover, .sf-ostree-spec:hover { background: var(--sf-hover); color: var(--sf-text); }
+.sf-ostree-spec { background: none; border: 0; width: 100%; cursor: pointer; text-align: left; font: inherit; }
+.sf-ostree-deep { margin-left: 14px; }
+.sf-ostree-dir { color: var(--sf-muted); padding-left: 8px; }
+.sf-ostree-ico { width: 14px; color: var(--sf-faint); flex: none; text-align: center; }
+.sf-ostree-path { font-family: var(--sf-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.sf-ostree-tag { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: var(--sf-panel-2); color: var(--sf-muted); flex: none; }
+.sf-ostree-tag.green { background: var(--sf-green-soft); color: var(--sf-green); }
+.sf-ostree-tag.orange { background: var(--sf-yellow-soft); color: var(--sf-yellow); }
+.sf-ostree-tag.red { background: var(--sf-red-soft); color: var(--sf-red); }
+@media (max-width: 1000px) { .sf-ospage { grid-template-columns: minmax(0, 1fr); } .sf-ostree { position: static; max-height: 320px; } }
+
+/* ---- OpenSpec: changes by status with their four steps --------------------------------- */
+.sf-stages { display: flex; flex-direction: column; gap: 16px; margin-bottom: 18px; }
+.sf-stages-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.sf-stages-bar { width: 3px; height: 16px; border-radius: 2px; background: var(--sf-muted); }
+.sf-stages-bar.blue { background: var(--sf-blue); }
+.sf-stages-bar.orange { background: var(--sf-yellow); }
+.sf-stages-bar.purple { background: var(--sf-purple); }
+.sf-stages-bar.red { background: var(--sf-red); }
+.sf-stages-bar.green { background: var(--sf-green); }
+.sf-stages-count { color: var(--sf-faint); font-size: 12px; }
+.sf-stages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+.sf-stage-card { border: 1px solid var(--sf-border); border-radius: 12px; background: var(--sf-panel); padding: 14px 16px; }
+.sf-stage-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.sf-stage-name { background: none; border: 0; color: var(--sf-text); font-weight: 700; font-size: 14px; cursor: pointer; text-align: left; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; }
+.sf-stage-name:hover { color: var(--sf-accent); }
+.sf-stage-line { display: flex; align-items: flex-start; justify-content: space-between; position: relative; margin-bottom: 14px; }
+.sf-stage-line::before { content: ''; position: absolute; left: 6px; right: 6px; top: 6px; height: 2px; background: var(--sf-border); }
+.sf-stage-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.sf-stage-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--sf-bg); border: 2px solid var(--sf-border); position: relative; z-index: 1; }
+.sf-stage-label { font-size: 11px; color: var(--sf-faint); }
+.sf-stage-step.done .sf-stage-dot { background: var(--sf-green); border-color: var(--sf-green); }
+.sf-stage-step.done .sf-stage-label { color: var(--sf-text); }
+.sf-stage-step.current .sf-stage-dot { border-color: var(--sf-accent); box-shadow: 0 0 0 4px var(--sf-accent-soft); }
+.sf-stage-step.current .sf-stage-label { color: var(--sf-text); font-weight: 700; }
+.sf-stage-step.optional .sf-stage-label { font-style: italic; }
+.sf-stage-progress { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--sf-faint); margin-bottom: 5px; }
+.sf-stage-bar { height: 6px; border-radius: 4px; background: var(--sf-panel-2); overflow: hidden; }
+.sf-stage-bar span { display: block; height: 100%; background: var(--sf-accent); border-radius: 4px; transition: width 0.4s; }
+.sf-ostree-spec.on { background: var(--sf-panel-2); color: var(--sf-text); font-weight: 600; }
+.sf-ws-tree { position: sticky; top: 12px; max-height: calc(100vh - 150px); overflow-y: auto; border: 1px solid var(--sf-border); border-radius: 12px; background: var(--sf-panel); padding: 8px 6px; }
+
+/* ---- OpenSpec home and item pages (revised) -------------------------------------------- */
+a.sf-ostree-name, a.sf-ostree-row { text-decoration: none; }
+.sf-ostree-toggle { background: none; border: 0; width: 100%; cursor: pointer; text-align: left; font: inherit; color: var(--sf-text); font-weight: 600; font-family: var(--sf-mono); font-size: 12.5px; }
+.sf-ostree-count { margin-left: auto; font-size: 11px; color: var(--sf-faint); font-weight: 400; }
+.sf-ostree-empty { font-size: 12px; padding: 4px 10px; }
+.sf-ostree-row.sf-ostree-file:hover { color: var(--sf-text); }
+.sf-spec-card { text-decoration: none; color: inherit; display: block; }
+.sf-spec-card:hover { border-color: var(--sf-accent); }
+.sf-spec-purpose { margin: 0 0 10px; color: var(--sf-muted); font-size: 12.5px; line-height: 1.5; }
+.sf-spec-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--sf-muted); margin-bottom: 6px; }
+.sf-spec-warn { color: var(--sf-yellow); }
+.sf-spec-changes { font-size: 11.5px; color: var(--sf-faint); font-family: var(--sf-mono); overflow-wrap: anywhere; }
+.sf-ws-status { width: auto; padding: 6px 10px; font-size: 12.5px; }
+
+/* ---- atualização do dia: popup and page ------------------------------------------------ */
+.sf-upd-modal { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); display: flex; flex-direction: column; background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: 16px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+.sf-upd-body { overflow-y: auto; min-height: 0; padding-right: 4px; }
+.sf-upd-section { margin-bottom: 18px; }
+.sf-upd-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 14px; }
+.sf-upd-item { border: 1px solid var(--sf-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; background: var(--sf-bg); }
+.sf-upd-item.impact { border-color: var(--sf-red); }
+.sf-upd-item-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.sf-upd-title { color: var(--sf-text); font-weight: 600; font-size: 13.5px; text-decoration: none; }
+.sf-upd-title:hover { color: var(--sf-accent); text-decoration: underline; }
+.sf-upd-installs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sf-upd-installs li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.sf-upd-page { max-width: 980px; margin: 0 auto; }
+.sf-upd-toggle { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--sf-border); cursor: pointer; }
+.sf-upd-toggle:last-of-type { border-bottom: 0; }
+.sf-upd-toggle input { margin-top: 4px; accent-color: var(--sf-accent); }
+
+/* label and value of a key-value row: spaced apart (tables keep their own layout) */
+div.sf-kv { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+div.sf-kv > span:first-child { color: var(--sf-muted); min-width: 130px; }
+.sf-upd-item.read { opacity: 0.6; }
+.sf-upd-item.read:hover { opacity: 1; }
+
+/* modals and drawers: text follows the theme (they were inheriting a dark default outside the layout) */
+.sf-drawer-back { color: var(--sf-text); }
+
+/* the link button inside the daily update popup: white text, like the other popup actions */
+.sf-upd-modal a.sf-btn { color: #ffffff; text-decoration: none; }
+
+/* ---- traffic light: green = nothing, yellow = priority 2 or more, red = priority 1 ------ */
+.sf-light { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sf-light > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sf-light strong { font-size: 15px; color: var(--sf-text); }
+.sf-light span:not(.sf-light-dot) { font-size: 13px; color: var(--sf-muted); line-height: 1.45; }
+.sf-light-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; }
+.sf-light.green .sf-light-dot { background: var(--sf-green); box-shadow: 0 0 0 4px var(--sf-green-soft); }
+.sf-light.yellow .sf-light-dot { background: var(--sf-yellow); box-shadow: 0 0 0 4px var(--sf-yellow-soft); }
+.sf-light.red .sf-light-dot { background: var(--sf-red); box-shadow: 0 0 0 4px var(--sf-red-soft); }
+.sf-upd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--sf-border); }
+.sf-upd-modal .sf-upd-section { margin-bottom: 0; }
+.sf-upd-modal .sf-upd-section-head { margin-bottom: 6px; }
+.sf-upd-item.tone-red { border-color: var(--sf-red); }
+.sf-upd-item.tone-yellow { border-color: var(--sf-yellow); }
+.sf-upd-switch { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.sf-upd-switch input { accent-color: var(--sf-accent); }

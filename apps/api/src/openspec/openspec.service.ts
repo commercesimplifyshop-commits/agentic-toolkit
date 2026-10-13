@@ -237,6 +237,13 @@ export class OpenSpecService {
         tasks: { total: tasks.total, done: tasks.done },
         deltas,
         specs: deltas.map((d) => d.capability),
+        files: files.filter((f) => f.startsWith(`${cdir}/`)).map((f) => f.slice(cdir.length + 1)).filter((f) => !f.startsWith('.')).sort(),
+        stages: {
+          proposal: this.text(base, `${cdir}/proposal.md`) !== null,
+          design: this.text(base, `${cdir}/design.md`) !== null,
+          tasks: this.text(base, `${cdir}/tasks.md`) !== null,
+        },
+        skipSpecs: /skip_specs:\s*true/.test(this.text(base, `${cdir}/.openspec.yaml`) ?? ''),
         validation: validation?.changes[name] ?? null,
       }
     })
@@ -299,6 +306,7 @@ export class OpenSpecService {
     return {
       id: name,
       dir,
+      files: files.filter((f) => f.startsWith(`${dir}/`)).map((f) => f.slice(dir.length + 1)).filter((f) => !f.startsWith('.')).sort(),
       proposal: proposal ?? '',
       tasks: { raw: tasksMd ?? '', ...parseTasks(tasksMd ?? '') },
       deltas,

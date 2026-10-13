@@ -276,6 +276,23 @@ export const ACTIONS = {
   'docs.cancel': { kind: 'data-write', methods: ['POST'], description: 'Cancela a geração ou publicação em andamento de uma documentação', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
   'docs.delete': { kind: 'data-write', methods: ['DELETE'], description: 'Remove a cópia da documentação no Agentic Toolkit', validate: (ctx) => (requireWorkspace(ctx), requireDocId(ctx)) },
 
+  'news.status': { kind: 'read', methods: ['GET'], description: 'Estado da atualização do dia (segundo plano)' },
+  'news.today': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Conteúdo da atualização do dia (um dia, padrão hoje): boletins de segurança do Adobe Commerce e o impacto em cada instalação',
+    validate: (ctx) => {
+      const d = (ctx.req.query as Record<string, unknown>).date
+      if (d !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(d))) fail('Data inválida: use yyyy-mm-dd', 'input.news-date')
+    },
+  },
+  'news.refresh': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Busca agora os boletins de segurança do Adobe (leitura de uma página permitida; grava só o cache do Agentic Toolkit)',
+  },
+  'news.settings.read': { kind: 'read', methods: ['GET'], description: 'Configurações da atualização do dia' },
+  'news.settings.save': { kind: 'data-write', methods: ['PUT'], description: 'Salva as configurações da atualização do dia (no Agentic Toolkit)' },
   'techs.list': { kind: 'read', methods: ['GET'], description: 'Lista as tecnologias suportadas pela instalação do Agentic Toolkit' },
   'sfcc.overview': {
     kind: 'read',

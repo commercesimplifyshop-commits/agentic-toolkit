@@ -11,6 +11,7 @@ import { RisksPage } from './pages/RisksPage'
 import { SecurityPage } from './pages/SecurityPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { useShell } from './store'
+import { DailyUpdate } from './news/DailyUpdate'
 import { useParams } from 'react-router-dom'
 import './shell.css'
 
@@ -22,8 +23,10 @@ const BoardPage = lazy(() => import('./pages/BoardPage').then((m) => ({ default:
 const DiagramsPage = lazy(() => import('./pages/DiagramsPage').then((m) => ({ default: m.DiagramsPage })))
 const OpenSpecPage = lazy(() => import('./pages/OpenSpecPage').then((m) => ({ default: m.OpenSpecPage })))
 const OpenSpecChangePage = lazy(() => import('./pages/OpenSpecChangePage').then((m) => ({ default: m.OpenSpecChangePage })))
+const OpenSpecSpecPage = lazy(() => import('./pages/OpenSpecChangePage').then((m) => ({ default: m.OpenSpecSpecPage })))
 const CodePage = lazy(() => import('./pages/CodePage').then((m) => ({ default: m.CodePage })))
 const SfccPage = lazy(() => import('./pages/SfccPages').then((m) => ({ default: m.SfccPage })))
+const UpdatesPage = lazy(() => import('./pages/UpdatesPage').then((m) => ({ default: m.UpdatesPage })))
 const TutorialPage = lazy(() => import('./pages/TutorialPage').then((m) => ({ default: m.TutorialPage })))
 const loading = <div className="sf-page"><span className="sf-spinner" /></div>
 
@@ -54,6 +57,25 @@ function HomeForTech() {
   return <OverviewPage />
 }
 
+/** The update page lives inside a workspace (so the menus stay): the old address opens the current one */
+function UpdatesRedirect() {
+  const navigate = useNavigate()
+  const refresh = useShell((s) => s.refreshWorkspaces)
+  useEffect(() => {
+    refresh()
+      .then((list) => {
+        const ws = list.find((w) => w.status === 'analyzed') ?? list[0]
+        navigate(ws ? `/w/${ws.id}/atualizacao` : '/connect', { replace: true })
+      })
+      .catch(() => navigate('/connect', { replace: true }))
+  }, [navigate, refresh])
+  return (
+    <div className="sf-root" style={{ display: 'grid', placeItems: 'center' }}>
+      <span className="sf-spinner" />
+    </div>
+  )
+}
+
 const router = createBrowserRouter([
   { path: '/', element: <Home /> },
   { path: '/connect', element: <ConnectPage /> },
@@ -73,9 +95,11 @@ const router = createBrowserRouter([
       { path: 'diagrams', element: <Suspense fallback={loading}><DiagramsPage /></Suspense> },
       { path: 'openspec', element: <Suspense fallback={loading}><OpenSpecPage /></Suspense> },
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
+      { path: 'atualizacao', element: <Suspense fallback={loading}><UpdatesPage /></Suspense> },
       { path: 'tutorial', element: <Suspense fallback={loading}><TutorialPage /></Suspense> },
       { path: 'tutorial/:topic', element: <Suspense fallback={loading}><TutorialPage /></Suspense> },
       { path: 'openspec/change/:name', element: <Suspense fallback={loading}><OpenSpecChangePage /></Suspense> },
+      { path: 'openspec/spec', element: <Suspense fallback={loading}><OpenSpecSpecPage /></Suspense> },
       { path: 'flow', element: <Suspense fallback={loading}><FlowPage mode="flow" /></Suspense> },
       { path: 'debug', element: <Suspense fallback={loading}><FlowPage mode="debug" /></Suspense> },
       { path: 'risks', element: <RisksPage /> },
@@ -85,9 +109,15 @@ const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
     ],
   },
+  { path: 'atualizacao', element: <UpdatesRedirect /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ])
 
 export function Root() {
-  return <RouterProvider router={router} />
+  return (
+    <>
+      <RouterProvider router={router} />
+      <DailyUpdate />
+    </>
+  )
 }

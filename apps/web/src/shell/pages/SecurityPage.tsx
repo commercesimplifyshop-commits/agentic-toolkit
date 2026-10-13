@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { fmtDate, useShell } from '../store'
 
 export function SecurityPage() {
@@ -14,6 +14,11 @@ export function SecurityPage() {
         <div className="sf-page-title">
           <h1>Segurança & patches</h1>
           <p>Versão, suporte, pacotes de segurança, módulos de proteção e patches aplicados.</p>
+        </div>
+        <div className="sf-actions">
+          <Link className="sf-btn" to={`/w/${id}/atualizacao`} title="Boletins de segurança do Adobe Commerce e impacto nas suas instalações">
+            ◷ Boletins de segurança
+          </Link>
         </div>
       </div>
 
