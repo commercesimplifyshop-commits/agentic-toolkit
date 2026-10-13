@@ -24,6 +24,7 @@ const OpenSpecPage = lazy(() => import('./pages/OpenSpecPage').then((m) => ({ de
 const OpenSpecChangePage = lazy(() => import('./pages/OpenSpecChangePage').then((m) => ({ default: m.OpenSpecChangePage })))
 const CodePage = lazy(() => import('./pages/CodePage').then((m) => ({ default: m.CodePage })))
 const SfccPage = lazy(() => import('./pages/SfccPages').then((m) => ({ default: m.SfccPage })))
+const TutorialPage = lazy(() => import('./pages/TutorialPage').then((m) => ({ default: m.TutorialPage })))
 const loading = <div className="sf-page"><span className="sf-spinner" /></div>
 
 /** Sends the user to their first analyzed installation, or to the connect screen. */
@@ -72,6 +73,8 @@ const router = createBrowserRouter([
       { path: 'diagrams', element: <Suspense fallback={loading}><DiagramsPage /></Suspense> },
       { path: 'openspec', element: <Suspense fallback={loading}><OpenSpecPage /></Suspense> },
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
+      { path: 'tutorial', element: <Suspense fallback={loading}><TutorialPage /></Suspense> },
+      { path: 'tutorial/:topic', element: <Suspense fallback={loading}><TutorialPage /></Suspense> },
       { path: 'openspec/change/:name', element: <Suspense fallback={loading}><OpenSpecChangePage /></Suspense> },
       { path: 'flow', element: <Suspense fallback={loading}><FlowPage mode="flow" /></Suspense> },
       { path: 'debug', element: <Suspense fallback={loading}><FlowPage mode="debug" /></Suspense> },

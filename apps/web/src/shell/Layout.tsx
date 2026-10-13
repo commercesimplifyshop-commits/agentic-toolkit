@@ -70,6 +70,13 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: 'Tutorial',
+    items: [
+      { to: 'tutorial', label: 'Como é uma solução', icon: '▶' },
+      { to: 'tutorial/customizacoes', label: 'Customizações frequentes', icon: '✚' },
+    ],
+  },
+  {
     title: 'Desenvolvimento',
     items: [
       { to: 'code', label: 'Explorador de código', icon: '{ }' },
