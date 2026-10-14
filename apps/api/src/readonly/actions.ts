@@ -17,7 +17,7 @@ import { isSensitive, ReadOnlyViolation } from './path-guard'
  * Every API route must be tagged with one of these actions and each action runs
  * its validator before the handler. Untagged routes are rejected (fail closed).
  */
-export type ActionKind = 'read' | 'data-write' | 'external' | 'repo-exception'
+export type ActionKind = 'read' | 'data-write' | 'external' | 'repo-exception' | 'repo-write'
 
 export interface ActionContext {
   req: Request
@@ -63,6 +63,11 @@ const requireLinkBody = (ctx: ActionContext) => {
   const b = (ctx.req.body ?? {}) as Record<string, unknown>
   if (!['diagram', 'board'].includes(String(b.kind))) fail('Tipo de ferramenta inválido', 'input.link-kind')
   if (!/^[a-z0-9-]{4,80}$/.test(String(b.refId ?? ''))) fail('Ferramenta inválida', 'input.link-ref')
+}
+
+const requireCardId = (ctx: ActionContext) => {
+  const card = ctx.req.params.cardId
+  if (card !== undefined && !/^[a-f0-9]{10}$/.test(String(card))) fail('Card inválido', 'input.card-id')
 }
 
 const requireBoardName = (ctx: ActionContext) => {
@@ -150,6 +155,23 @@ export const ACTIONS = {
   'workspaces.upload': { kind: 'data-write', methods: ['POST'], description: 'Recebe um .zip e extrai no diretório de dados' },
   'workspaces.configure': { kind: 'data-write', methods: ['PUT'], description: 'Escolhe a raiz Magento e os vendors próprios (metadados do Agentic Toolkit)', validate: requireWorkspace },
   'workspaces.sync': { kind: 'data-write', methods: ['POST'], description: 'git fetch no clone do Agentic Toolkit (nunca push)', validate: requireWorkspace },
+  'workspace.settings.read': { kind: 'read', methods: ['GET'], description: 'Configurações do workspace: pasta, projeto, repositório git e variáveis (valores secretos nunca são enviados)', validate: requireWorkspace },
+  'workspace.settings.write': {
+    kind: 'data-write',
+    methods: ['PUT'],
+    description: 'Grava as configurações do workspace no diretório de dados; mudar a pasta, o projeto ou os vendors inicia uma nova análise',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      for (const k of ['name', 'localPath', 'root', 'repoPath']) {
+        if (b[k] !== undefined && (typeof b[k] !== 'string' || (b[k] as string).length > 1000)) fail(`Campo ${k} inválido`, 'input.workspace-settings')
+      }
+      if (b.ownVendors !== undefined && (!Array.isArray(b.ownVendors) || b.ownVendors.length > 500)) fail('Lista de vendors inválida', 'input.workspace-settings')
+      if (b.env !== undefined && (!Array.isArray(b.env) || b.env.length > 40)) fail('Até 40 variáveis de ambiente', 'input.workspace-env')
+    },
+  },
+  'workspace.settings.sync': { kind: 'data-write', methods: ['POST'], description: 'Sincroniza o workspace: git fetch no clone do Agentic Toolkit (nunca push) ou nova leitura da pasta local, seguida de nova análise', validate: requireWorkspace },
+  'workspace.prerequisites': { kind: 'read', methods: ['GET'], description: 'O que cada funcionalidade precisa do workspace (análise, repositório git, Claude Code, IA)', validate: requireWorkspace },
   'workspaces.delete': {
     kind: 'data-write',
     methods: ['DELETE'],
@@ -293,6 +315,67 @@ export const ACTIONS = {
   },
   'news.settings.read': { kind: 'read', methods: ['GET'], description: 'Configurações da atualização do dia' },
   'news.settings.save': { kind: 'data-write', methods: ['PUT'], description: 'Salva as configurações da atualização do dia (no Agentic Toolkit)' },
+  'git.read': { kind: 'read', methods: ['GET'], description: 'Visão geral do git local: branches, worktrees, alterações e histórico', validate: requireWorkspace },
+  'git.write': {
+    kind: 'repo-write',
+    methods: ['POST', 'DELETE'],
+    description: 'Gerencia o git local do projeto: fetch, pull, checkout, branches e worktrees (auditado)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      for (const k of ['branch', 'base', 'name']) {
+        if (b[k] !== undefined && (typeof b[k] !== 'string' || (b[k] as string).length > 120)) fail('Nome de branch inválido', 'input.git-branch')
+      }
+    },
+  },
+  'git.push': {
+    kind: 'external',
+    methods: ['POST'],
+    description: 'Envia uma branch ao remoto (git push -u), após confirmação na tela',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (typeof (ctx.req.body ?? {}).branch !== 'string') fail('Informe a branch', 'input.git-branch')
+    },
+  },
+  'refine.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lê os cards de refinamento',
+    validate: (ctx) => (requireWorkspace(ctx), requireCardId(ctx)),
+  },
+  'refine.write': {
+    kind: 'data-write',
+    methods: ['POST', 'PUT', 'DELETE'],
+    description: 'Refinamento com o Claude (somente leitura do código): conversa, card refinado, edição e divisão. Grava no diretório de dados do Agentic Toolkit',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      requireCardId(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.message !== undefined && (typeof b.message !== 'string' || b.message.length > 20000)) fail('Mensagem de até 20000 caracteres', 'input.refine-message')
+      if (b.attachments !== undefined && (!Array.isArray(b.attachments) || b.attachments.length > 6 || !(b.attachments as unknown[]).every((a) => /^[a-f0-9]{16}\.(png|jpg|gif|webp)$/.test(String((a as Record<string, unknown>)?.id ?? ''))))) {
+        fail('Até 6 imagens por mensagem', 'input.refine-attachments')
+      }
+      if (b.splits !== undefined && (!Array.isArray(b.splits) || b.splits.length > 6)) fail('Divida em até 6 partes', 'input.refine-splits')
+    },
+  },
+  'refine.git': {
+    kind: 'repo-write',
+    methods: ['POST'],
+    description: 'Prepara a branch e o worktree de uma tarefa (cria ou reaproveita; atualiza a base se pedido)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      requireCardId(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (!['new', 'existing'].includes(String(b.mode))) fail('Escolha criar ou usar uma branch existente', 'input.git-mode')
+      if (typeof b.branch !== 'string' || b.branch.length > 120) fail('Nome de branch inválido', 'input.git-branch')
+    },
+  },
+  'refine.develop': {
+    kind: 'repo-write',
+    methods: ['POST'],
+    description: 'Inicia ou para o desenvolvimento de uma tarefa pelo Claude Code, com escrita no worktree da tarefa',
+    validate: (ctx) => (requireWorkspace(ctx), requireCardId(ctx)),
+  },
   'techs.list': { kind: 'read', methods: ['GET'], description: 'Lista as tecnologias suportadas pela instalação do Agentic Toolkit' },
   'sfcc.overview': {
     kind: 'read',
@@ -511,6 +594,38 @@ export const ACTIONS = {
       if (!/^[a-f0-9]{12}$/.test(String((ctx.req.query as Record<string, unknown>).id ?? ''))) fail('Conversa inválida', 'input.explore-id')
     },
   },
+  'openspec.explore.attach': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Guarda uma imagem anexada à conversa de exploração (PNG, JPG, GIF ou WEBP, até 5 MB) no diretório de dados do Agentic Toolkit',
+    validate: requireWorkspace,
+  },
+  'openspec.explore.attachment': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Mostra uma imagem anexada a uma conversa de exploração',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^[a-f0-9]{16}\.(png|jpg|gif|webp)$/.test(String((ctx.req.query as Record<string, unknown>).file ?? ''))) fail('Anexo inválido', 'input.explore-attachments')
+    },
+  },
+  'openspec.create': {
+    kind: 'repo-exception',
+    methods: ['POST'],
+    description: 'EXCEÇÃO DE ESCRITA: cria uma mudança do OpenSpec com os arquivos revisados (proposta, design, tarefas e deltas de spec), com confirmação e auditoria',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      requireOpenSpecName(b.name, 'mudança')
+      if (!b.files || typeof b.files !== 'object' || Array.isArray(b.files)) fail('Arquivos da mudança inválidos', 'input.openspec-files')
+      const files = Object.entries(b.files as Record<string, unknown>)
+      if (files.length < 2 || files.length > 30) fail('A mudança precisa de 2 a 30 arquivos', 'input.openspec-files')
+      for (const [k, v] of files) {
+        if (k.includes('..') || k.length > 200) fail('Caminho inválido', 'input.openspec-path')
+        if (typeof v !== 'string' || Buffer.byteLength(v, 'utf8') > 512 * 1024) fail('Conteúdo inválido ou maior que 512 KB', 'input.openspec-content')
+      }
+    },
+  },
   'openspec.explore': {
     kind: 'data-write',
     methods: ['POST'],
@@ -518,7 +633,15 @@ export const ACTIONS = {
     validate: (ctx) => {
       requireWorkspace(ctx)
       const b = (ctx.req.body ?? {}) as Record<string, unknown>
-      if (typeof b.message !== 'string' || b.message.trim().length < 2 || b.message.length > 4000) fail('Mensagem entre 2 e 4000 caracteres', 'input.explore-message')
+      const attachments = b.attachments === undefined ? [] : b.attachments
+      if (!Array.isArray(attachments) || attachments.length > 6) fail('Até 6 imagens por mensagem', 'input.explore-attachments')
+      for (const a of attachments as unknown[]) {
+        const att = (a ?? {}) as Record<string, unknown>
+        if (!/^[a-f0-9]{16}\.(png|jpg|gif|webp)$/.test(String(att.id ?? ''))) fail('Anexo inválido', 'input.explore-attachments')
+      }
+      const message = b.message === undefined ? '' : b.message
+      if (typeof message !== 'string' || message.length > 20000) fail('Mensagem de até 20000 caracteres', 'input.explore-message')
+      if ((message as string).trim().length < 2 && (attachments as unknown[]).length === 0) fail('Escreva a mensagem ou anexe uma imagem', 'input.explore-message')
       if (b.sessionId !== undefined && !/^[a-f0-9]{12}$/.test(String(b.sessionId))) fail('Conversa inválida', 'input.explore-id')
     },
   },

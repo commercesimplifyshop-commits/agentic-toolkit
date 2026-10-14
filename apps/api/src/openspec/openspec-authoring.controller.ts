@@ -28,6 +28,13 @@ export class OpenSpecAuthoringController {
     return this.authoring.createChange(id, body)
   }
 
+  /** A change from the reviewed files Claude wrote (proposal, design, tasks, spec deltas) */
+  @Post('change/files')
+  @Action('openspec.create')
+  createFromFiles(@Param('id') id: string, @Body() body: { name: string; files: Record<string, string> }) {
+    return this.authoring.createChangeFromFiles(id, body)
+  }
+
   @Post('change/skip')
   @Action('openspec.save')
   skipSpecs(@Param('id') id: string, @Body() body: { name: string; skip: boolean }) {

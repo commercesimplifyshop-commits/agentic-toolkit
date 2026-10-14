@@ -1,6 +1,6 @@
 # Agentic Toolkit
 
-Dashboard **somente leitura** para entender qualquer instalação **Magento 2 / Adobe Commerce** lendo o código. Você conecta uma instalação (pasta local, repositório Git, inclusive privado, ou .zip) e ganha:
+Dashboard para entender e evoluir qualquer instalação **Magento 2 / Adobe Commerce** a partir do código. Você conecta uma instalação (pasta local, repositório Git, inclusive privado, ou .zip) e ganha:
 
 - **Visão geral:**
   - versão e status de suporte;
@@ -13,6 +13,8 @@ Dashboard **somente leitura** para entender qualquer instalação **Magento 2 / 
 - **Pergunte ao código:** IA (Claude Code local, API da Anthropic ou modelo local) que responde lendo o código, com ferramentas que só leem.
 - **Explorador de código no estilo PhpStorm:** tema Darcula, abas, Find in Files, Go to File/Class, Search Everywhere e `Ctrl+clique` para ir à declaração, tudo somente leitura.
 - **Pontos de atenção, segurança e patches.**
+- **Refinamento:** da demanda crua ao card refinado (negócio, solução técnica, critérios de aceite, observações), com divisão em tarefas e desenvolvimento pelo Claude Code, cada tarefa no seu worktree.
+- **Git:** branches, worktrees, alterações e histórico do repositório do projeto, com as ações do dia a dia.
 
 Feito para o engenheiro que chega num projeto sem contexto e precisa, em minutos, saber o que foi customizado, onde, e o que merece cuidado.
 
@@ -62,6 +64,33 @@ Toda doc segue a mesma estrutura: resumo, visão geral, onde está no código, c
 
 Precisa do Claude Code instalado e logado (o mesmo de "Pergunte ao código"). A publicação usa o conector Claude Docs da sua conta.
 
+## Refinamento e desenvolvimento por tarefa
+
+Em **Desenvolvimento → Refinamento** você leva uma demanda do texto cru até o código, sem precisar de OpenSpec:
+
+1. **Nova demanda**: cole o texto do ticket, o pedido do cliente ou prints. O Claude lê o código (só com ferramentas de leitura nesta etapa) e responde com o entendimento, a solução que imagina e as perguntas que faltam. Vocês conversam até ficar claro.
+2. **Gerar card refinado**: o card traz a descrição de negócio, a **descrição técnica** (a solução, que o Claude segue para desenvolver), o plano de execução, os critérios de aceite, os pontos de observação e a complexidade. Tudo é editável, e os botões copiam o card em Markdown, no formato do Jira ou do Azure DevOps.
+3. **Dividir**: se o Claude recomendar (ou você quiser), a demanda vira de 2 a 6 tarefas. Cada parte passa pelo mesmo refinamento, só com o seu escopo, em segundo plano.
+4. **Preparar git**: escolha uma branch existente ou crie uma nova a partir de uma base. Antes de criar, o painel busca a base no remoto e mostra se ela está atualizada; você decide se atualiza (fast-forward). A tarefa ganha um **worktree**, uma pasta própria em `<projeto>-worktrees/<branch>`, ao lado do projeto. A pasta principal não muda.
+5. **Iniciar desenvolvimento com o Claude**: o Claude Code roda no worktree da tarefa, segue o plano, mostra o progresso no card (percentual, passo atual e atividade) e termina com um commit, sem push. Várias tarefas podem ser desenvolvidas em paralelo, cada uma na sua sessão e no seu worktree. "Parar" interrompe a sessão; o que já foi alterado fica no worktree. O push usa as credenciais do git desta máquina (num clone feito pelo painel com token somente leitura, ele é recusado pelo remoto).
+
+Em **Desenvolvimento → Git** fica a visão do repositório local: branch atual, alterações, branches com ahead/behind e último commit, worktrees com alterações pendentes, stashes, remotos e os últimos commits. As ações são fetch, pull (fast-forward), checkout, nova branch (com ou sem worktree), criar ou remover worktree, limpar worktrees órfãos, excluir branch e **push**, sempre com confirmação. O card da tarefa leva direto à branch dela nessa tela.
+
+Os cards ficam em `~/.agentic-toolkit`. Se a pasta conectada não for um repositório git (por exemplo, uma cópia ou um .zip), o Git e o desenvolvimento por tarefa avisam e levam para **Configurações → Workspace → Repositório git**; o refinamento continua funcionando.
+
+## Configurações do workspace e pré-requisitos
+
+Em **Configurações → Workspace** ficam os dados de cada instalação, os mesmos que o setup inicial grava (e que você pode editar depois):
+
+- **Pasta local**: onde está o código. Um workspace criado a partir de um clone ou de um .zip pode ser vinculado à pasta do seu clone de trabalho; a cópia feita pelo Agentic Toolkit é apagada. "Sincronizar" faz o `git fetch` do clone (ou lê a pasta local de novo) e analisa.
+- **Pasta do projeto**: a raiz do Magento (ou a pasta com `cartridges/`) dentro da pasta, e os vendors do seu time.
+- **Repositório git**: por padrão, o repositório que contém o projeto. Informe outro caminho quando o código analisado for uma cópia e o seu clone estiver em outra pasta. É o repositório usado pela tela Git e pelo desenvolvimento das tarefas.
+- **Variáveis de ambiente**: entregues à sessão do Claude Code que desenvolve as tarefas (para rodar `bin/magento`, testes etc.). Ficam no diretório de dados, nunca no projeto. Valores marcados como secretos não voltam para a tela, e nomes que mudariam como as ferramentas rodam (`PATH`, `NODE_OPTIONS`, `GIT_*`, `LD_*`, `ANTHROPIC_*`…) são recusados.
+
+Mudar a pasta, o projeto ou os vendors de um workspace já analisado inicia uma nova análise; a tela acompanha o progresso e volta para Configurações.
+
+Cada funcionalidade declara do que precisa (repositório git, remoto, Claude Code, provedor de IA). Quando falta algo, a tela mostra um aviso com o que deixa de funcionar e um link direto para a seção de Configurações que resolve. A lista fica em `apps/web/src/shell/prereqs.tsx` (`FEATURE_NEEDS`), e a checagem em `GET /api/workspaces/<id>/prerequisites`.
+
 ## OpenSpec (desenvolvimento guiado por especificações)
 
 Em **Ferramentas & plugins → OpenSpec** você acompanha as specs e as mudanças do projeto, com o [OpenSpec](https://github.com/Fission-AI/OpenSpec) como fonte da verdade:
@@ -71,7 +100,7 @@ Em **Ferramentas & plugins → OpenSpec** você acompanha as specs e as mudança
 - **Specs**: status (estável, em alteração, rascunho, aprovada, obsoleta) e requisitos com cenários.
 - **Primeiro uso**: se o projeto ainda não tem OpenSpec, o painel gera o prompt de instalação para você colar no Claude Code no terminal. Se o OpenSpec estiver em outra pasta, você a mapeia informando o caminho relativo à raiz.
 
-**Somente leitura, também aqui.** O painel lê o `openspec/` do projeto e nunca escreve nele. Instalar (`openspec init`), criar mudanças, implementar e arquivar são prompts para o seu Claude Code no terminal: o painel só copia o texto. O CLI, quando instalado, roda só com verbos de leitura (`list`, `show`, `status`, `validate`), e comandos que escrevem são recusados pela allowlist. Os status manuais (em revisão, impedida, aprovada etc.) ficam no `~/.agentic-toolkit` desta máquina, e não são compartilhados com o time ainda.
+**Arquivos do OpenSpec.** O painel lê o `openspec/` do projeto. Criar uma mudança a partir de uma proposta revisada, editar specs e instalar o OpenSpec gravam só nos caminhos do OpenSpec, com confirmação (veja "Escrita de arquivos do OpenSpec"). Implementar e arquivar continuam sendo prompts para o seu Claude Code no terminal. Os status manuais (em revisão, impedida, aprovada etc.) ficam no `~/.agentic-toolkit` desta máquina, e não são compartilhados com o time ainda.
 
 ## Diagramas de arquitetura
 
@@ -115,26 +144,25 @@ Limites atuais do Salesforce B2C: a documentação gerada pelo Claude ainda não
 
 Na primeira execução, os dados da versão anterior são copiados para `techs/adobe-commerce/` e os originais são mantidos. A pasta do código do cliente nunca é alterada.
 
-## Regra crítica: somente leitura
+## Ações declaradas e auditadas
 
-O Agentic Toolkit **nunca escreve no código Magento**, e isso é garantido por código, não só por convenção:
+Ler o código é a regra da maior parte das telas, mas escrever deixou de ser proibido por padrão: o **Git** e o **desenvolvimento por tarefa** escrevem no repositório, porque esse é o objetivo deles. O que vale para tudo, e é garantido por código:
 
 | Proteção | Como |
 |---|---|
-| Toda rota declara uma ação | Rota sem `@Action` é bloqueada (fail closed). Cada ação tem método HTTP permitido e validador próprio, executado antes do handler. |
-| Camada de leitura única | O acesso ao código passa por `ReadOnlyFs`, que não tem métodos de escrita e bloqueia `../`, caminhos absolutos e links simbólicos que apontam para fora. |
-| Credenciais nunca lidas | `app/etc/env.php`, `auth.json`, `.env`, chaves e `.git/config` são listados, mas o conteúdo é recusado (inclusive para a IA). |
-| Escrita só no diretório de dados | Mapas, anotações, clones e uploads ficam em `~/.agentic-toolkit`. Destino dentro de uma instalação Magento é bloqueado. |
-| Comandos com allowlist | Git só lê ou clona no diretório de dados (push desativado no clone). Só os scripts do analyzer rodam. O Claude Code roda com `--tools Read,Grep,Glob`, sem MCP e ignorando o `.claude/` do repositório Magento. |
+| Toda rota declara uma ação | Rota sem `@Action` é bloqueada (fail closed). Cada ação tem tipo (leitura, dados, externa, escrita no repositório), método HTTP permitido e validador próprio, executado antes do handler. |
+| Telas de análise só leem | Visão geral, mapas, explorador de código, "Pergunte ao código", diagramas e o refinamento acessam o código por `ReadOnlyFs` (sem métodos de escrita; bloqueia `../`, caminhos absolutos e links simbólicos para fora) ou pelo Claude Code com `--tools Read,Grep,Glob`. |
+| Escrita no repositório só onde é o objetivo | Git (branches, worktrees, pull, push) e desenvolvimento por tarefa, sempre a partir de um botão com confirmação e registrados na auditoria como "escrita no repositório". O desenvolvimento roda no worktree da tarefa, nunca na pasta principal, e termina em commit sem push. O push é uma ação separada, com confirmação. |
+| Credenciais nunca lidas | `app/etc/env.php`, `auth.json`, `.env`, chaves e `.git/config` são listados, mas o conteúdo é recusado (inclusive para a IA). URLs de remotos aparecem com as credenciais mascaradas. |
+| Comandos sem shell | Tudo roda pelo `CommandRunner`, sem shell. No git, continuam bloqueadas as opções que executam outro programa (`--upload-pack`, `--receive-pack`, `--exec`, `--template`, `-c core.hooksPath/sshCommand/fsmonitor`, `protocol.*.allow=always`) e clones `file://`. O Claude Code roda sempre em modo não interativo (`-p`), sem MCP e ignorando o `.claude/` do repositório do projeto. |
 | Simulador de API não toca no repositório | As requisições vão só para a URL que você informou (http/https, sem credenciais na URL, nunca para o próprio Agentic Toolkit), classificadas como "requisição externa" na auditoria. |
-| Documentação em duas etapas isoladas | Quem escreve é o Claude Code com `--tools Read,Grep,Glob`, sem MCP. Quem publica é outra execução, sem nenhuma ferramenta de leitura de código, rodando numa pasta do diretório de dados e liberada só para o conector Claude Docs (sem excluir). Ela recebe apenas o Markdown pronto. |
 | Auditoria e autoteste | Toda ação (permitida ou bloqueada) vai para o log. A tela "Regras & auditoria" roda um autoteste de cada proteção. |
 
-Os testes automatizados (`npm test`) cobrem essas regras.
+Os testes automatizados (`npm test`) cobrem essas regras. Uma funcionalidade nova que só deva ler é marcada como tal na sua ação (tipo `read`); a restrição é a exceção declarada, não a regra.
 
-### Exceções de escrita (lista explícita)
+### Escrita de arquivos do OpenSpec
 
-Há uma única exceção, para o **OpenSpec**, porque criar e editar specs é o objetivo da funcionalidade. Ela está declarada em `apps/api/src/readonly/repo-exceptions.ts` e vale só para estes caminhos, relativos à raiz da instalação:
+O **OpenSpec** grava arquivos na pasta principal da instalação (não num worktree) e por isso tem regras próprias, declaradas em `apps/api/src/readonly/repo-exceptions.ts` e vale só para estes caminhos, relativos à raiz da instalação:
 
 | Exceção | Caminhos | Extensões |
 |---|---|---|
@@ -150,7 +178,6 @@ Para gravar, todo caminho passa por estas checagens, e qualquer falha bloqueia a
 
 A gravação passa sempre pelo `RepoWriter`, o único lugar do código que escreve em uma instalação. A instalação do OpenSpec roda o CLI numa pasta de preparação dentro do `~/.agentic-toolkit`, e só os arquivos da lista são copiados para a instalação. Os rascunhos do Claude são somente texto, e nada é salvo sem a sua confirmação.
 
-Para liberar outra escrita, é preciso incluir uma nova exceção nessa lista e nos testes, e isso é uma decisão do time.
 
 ## Instalação com o Claude Code (recomendado)
 
@@ -166,7 +193,7 @@ Instale o Agentic Toolkit para mim seguindo o README de https://github.com/comme
 
 1. Clone o repositório na pasta atual (se ainda não existir), entre nele e rode `npm install` e `npm run build`.
 2. Suba o servidor com `npm start` em segundo plano e confirme que http://127.0.0.1:4310/api/system/health responde.
-3. Rode `curl -s http://127.0.0.1:4310/api/system/selftest` e me mostre se todas as proteções de somente leitura passaram.
+3. Rode `curl -s http://127.0.0.1:4310/api/system/selftest` e me mostre se todas as proteções passaram.
 4. Me pergunte onde está a minha instalação Magento: caminho de uma pasta local, URL de um repositório Git ou um arquivo .zip.
    - Pasta local: valide com POST /api/workspaces/inspect {"path": "<caminho>"} e me mostre o checklist. Se o Magento estiver numa subpasta, use a candidata encontrada. Depois crie com POST /api/workspaces {"source":"local","path":"<raiz>"}.
    - Repositório Git: explique as 3 formas de acesso a repositório privado da seção "Repositórios privados" do README e use a que eu escolher. Nunca grave o token em arquivo nem o mostre nos logs.
@@ -175,7 +202,7 @@ Instale o Agentic Toolkit para mim seguindo o README de https://github.com/comme
 6. Rode a análise (POST /api/workspaces/<id>/analysis), acompanhe o job até terminar e me mostre os highlights de GET /api/workspaces/<id>/overview.
 7. Abra http://127.0.0.1:4310 no navegador e me explique em poucas linhas as áreas do menu lateral.
 
-Regras: o Agentic Toolkit é somente leitura. Não edite, mova ou apague nada dentro da instalação Magento e não faça commit de nada do diretório ~/.agentic-toolkit.
+Regras: durante a instalação, não edite, mova ou apague nada dentro da instalação Magento e não faça commit de nada do diretório ~/.agentic-toolkit.
 ```
 
 Depois, para a IA analisar as customizações com profundidade (resumos e pontos de atenção), rode dentro do repositório do Agentic Toolkit:
@@ -240,7 +267,7 @@ As anotações nunca devem ir para o git do Agentic Toolkit: contêm detalhes do
 ## Arquitetura
 
 ```
-apps/api            NestJS: workspaces, análise, visão geral, arquivos, IA, regras de somente leitura
+apps/api            NestJS: workspaces, análise, visão geral, arquivos, IA, refinamento, git, ações e auditoria
   src/readonly      path-guard, ReadOnlyFs, CommandRunner (allowlist), ações + guarda global, auditoria
 apps/web            React + Vite: dashboard (src/shell) e o fluxo 3D / debug (React Three Fiber)
 packages/analyzer   extrator estático (webapi.xml, di.xml, events.xml, routes.xml, crontab.xml…) e referência do core
@@ -265,8 +292,8 @@ Os módulos exclusivos do Adobe Commerce e o MSI não estão na referência púb
 
 ```bash
 npm run dev     # API (watch) + web (Vite)
-npm test        # testes das regras de somente leitura e do detector Magento
+npm test        # testes das ações, do git, do refinamento e do detector Magento
 npm run build   # build de produção (API + web)
 ```
 
-Novas funcionalidades entram no menu lateral em `apps/web/src/shell/Layout.tsx`. Toda rota nova da API precisa declarar uma ação em `apps/api/src/readonly/actions.ts`; sem isso, ela é bloqueada.
+Novas funcionalidades entram no menu lateral em `apps/web/src/shell/Layout.tsx` e declaram seus pré-requisitos em `apps/web/src/shell/prereqs.tsx`. Toda rota nova da API precisa declarar uma ação em `apps/api/src/readonly/actions.ts`; sem isso, ela é bloqueada.

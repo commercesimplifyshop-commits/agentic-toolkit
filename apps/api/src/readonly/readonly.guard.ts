@@ -7,9 +7,8 @@ import { AuditService } from './audit.service'
 import { ReadOnlyViolation } from './path-guard'
 
 /**
- * Global guard enforcing the read-only rule on every request:
- * the route must declare an action, use an allowed HTTP method and pass
- * the action's validator. Anything else is blocked and audited.
+ * Global guard on every request: the route must declare an action, use an allowed HTTP method
+ * and pass the action's input validator. Everything is audited; undeclared routes are blocked.
  */
 @Injectable()
 export class ReadOnlyGuard implements CanActivate {
@@ -29,7 +28,7 @@ export class ReadOnlyGuard implements CanActivate {
       throw new ForbiddenException({ error: detail, rule })
     }
 
-    if (!id) return block('route.undeclared', 'Rota sem ação declarada: bloqueada pela regra de somente leitura')
+    if (!id) return block('route.undeclared', 'Rota sem ação declarada: bloqueada')
     const def: ActionDef = ACTIONS[id]
     if (!def.methods.includes(req.method as ActionDef['methods'][number])) {
       return block('route.method', `Método ${req.method} não permitido para ${id}`, id, def.kind)

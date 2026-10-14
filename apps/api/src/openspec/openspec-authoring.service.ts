@@ -189,6 +189,36 @@ export class OpenSpecAuthoringService {
   }
 
   /**
+   * Creates a change from the files Claude wrote and the engineer reviewed (proposal, design,
+   * tasks, spec deltas). Every file goes through RepoWriter, inside the OpenSpec exception.
+   */
+  createChangeFromFiles(id: string, body: { name: string; files: Record<string, string> }) {
+    const { base, rel: dir } = this.where(id)
+    if (!CHANGE_NAME.test(body.name)) throw new BadRequestException('Nome da mudança: use letras minúsculas, números e hífens (ex.: exibir-frete-na-pdp)')
+    if (this.changeExists(base, dir, body.name)) throw new ConflictException(`Já existe uma mudança chamada ${body.name}`)
+    const entries = Object.entries(body.files ?? {})
+    const allowed = /^(proposal\.md|design\.md|tasks\.md|specs\/[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*\/spec\.md)$/
+    if (!entries.some(([k]) => k === 'proposal.md') || !entries.some(([k]) => k === 'tasks.md')) {
+      throw new BadRequestException('A mudança precisa de proposal.md e tasks.md')
+    }
+    for (const [k, v] of entries) {
+      if (!allowed.test(k)) throw new BadRequestException(`Arquivo fora da estrutura do OpenSpec: ${k}`)
+      if (typeof v !== 'string' || !v.trim()) throw new BadRequestException(`Arquivo vazio: ${k}`)
+    }
+    const root = `${dir}/changes/${body.name}`
+    const created: string[] = []
+    const put = (rel: string, content: string) => {
+      this.writer.write(id, { exception: 'openspec', rel, content, openspecDir: dir, create: true, action: 'openspec.create-change' })
+      created.push(rel)
+    }
+    for (const [k, v] of entries) put(`${root}/${k}`, v.endsWith('\n') ? v : `${v}\n`)
+    // OpenSpec reads the schema here; a change without deltas says so explicitly, or validation fails
+    put(`${root}/.openspec.yaml`, SKIP_SPECS_YAML(!entries.some(([k]) => k.startsWith('specs/'))))
+    this.openspec.invalidate(id)
+    return { name: body.name, created }
+  }
+
+  /**
    * Marks (or unmarks) an existing change as having no spec changes, through the
    * .openspec.yaml file OpenSpec reads. Only this file is touched.
    */

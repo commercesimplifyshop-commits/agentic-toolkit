@@ -107,31 +107,21 @@ describe('CommandRunner allowlist', () => {
   const runner = new CommandRunner()
   const clone = path.join(DATA_DIR, 'repos', 'abc')
 
-  it('allows read-only git and clones into the data dir', () => {
+  it('allows git to write: branches, worktrees, commits and push', () => {
+    const root = fakeMagento()
     expect(() => runner.validate('git', ['clone', '--depth', '1', 'https://github.com/acme/shop.git', clone])).not.toThrow()
-    expect(() => runner.validate('git', ['-C', clone, 'log', '-1'])).not.toThrow()
-    expect(() => runner.validate('git', ['-C', clone, 'remote', 'set-url', '--push', 'origin', 'DISABLED'])).not.toThrow()
-  })
-
-  it('blocks git commands that write to a repository', () => {
-    for (const sub of [['push', 'origin', 'main'], ['commit', '-m', 'x'], ['reset', '--hard'], ['merge', 'x'], ['rebase', 'x'], ['tag', 'v1'], ['rm', 'a'], ['clean', '-fd'], ['apply', 'x.patch'], ['config', 'user.name', 'x']]) {
-      blocked(() => runner.validate('git', sub), 'cmd.git-subcommand')
+    for (const sub of [['push', '-u', 'origin', 'feature/x'], ['commit', '-m', 'x'], ['worktree', 'add', '-b', 'feature/x', '../wt', 'main'], ['branch', '-D', 'old'], ['checkout', 'main'], ['fetch', 'origin'], ['pull', '--ff-only']]) {
+      expect(() => runner.validate('git', ['-C', root, ...sub])).not.toThrow()
     }
-    blocked(() => runner.validate('git', ['remote', 'add', 'evil', 'https://x']), 'cmd.git-remote')
-    blocked(() => runner.validate('git', ['branch', '-D', 'main']), 'cmd.git-branch')
   })
 
-  it('blocks clones outside the data dir and dangerous URLs', () => {
-    blocked(() => runner.validate('git', ['clone', 'https://github.com/acme/shop.git', path.join(os.tmpdir(), 'x')]), 'write.outside-data-dir')
+  it('still blocks the git options that run an arbitrary program, and file:// clones', () => {
     blocked(() => runner.validate('git', ['clone', 'file:///etc', clone]), 'cmd.git-url')
     blocked(() => runner.validate('git', ['clone', '--upload-pack=touch /tmp/pwn', 'https://x/y.git', clone]), 'cmd.git-flag')
+    blocked(() => runner.validate('git', ['clone', '-u', 'touch /tmp/pwn', 'https://x/y.git', clone]), 'cmd.git-flag')
     blocked(() => runner.validate('git', ['-c', 'core.hooksPath=/tmp/h', 'clone', 'https://x/y.git', clone]), 'cmd.git-config')
-  })
-
-  it('blocks fetch/checkout in a local Magento folder', () => {
-    const root = fakeMagento()
-    blocked(() => runner.validate('git', ['-C', root, 'fetch']), 'write.outside-data-dir')
-    blocked(() => runner.validate('git', ['-C', root, 'checkout', 'main']), 'write.outside-data-dir')
+    blocked(() => runner.validate('git', ['-c', 'core.sshCommand=touch /tmp/pwn', 'fetch']), 'cmd.git-config')
+    blocked(() => runner.validate('git', ['fetch', '--upload-pack=touch /tmp/pwn']), 'cmd.git-flag')
   })
 
   it('only runs the analyzer scripts, writing to the data dir', () => {
@@ -147,18 +137,10 @@ describe('CommandRunner allowlist', () => {
 
   const claudeOk = ['-p', '--tools', 'Read,Grep,Glob', '--allowedTools', 'Read,Grep,Glob', '--disallowedTools', 'Edit,MultiEdit,Write,NotebookEdit,Bash,WebFetch,WebSearch', '--setting-sources', 'user', '--strict-mcp-config']
 
-  it('runs Claude Code only with read-only tools and without repo settings', () => {
+  it('runs Claude Code headless, read-only or able to write (development sessions)', () => {
     expect(() => runner.validate('claude', claudeOk)).not.toThrow()
-    blocked(() => runner.validate('claude', claudeOk.map((a) => (a === 'Read,Grep,Glob' ? 'Read,Edit' : a))), 'cmd.claude-tools')
-    blocked(() => runner.validate('claude', claudeOk.filter((a) => a !== '--strict-mcp-config')), 'cmd.claude-mcp')
-    blocked(() => runner.validate('claude', claudeOk.map((a) => (a === 'user' ? 'user,project' : a))), 'cmd.claude-settings')
-    blocked(() => runner.validate('claude', [...claudeOk, '--dangerously-skip-permissions']), 'cmd.claude-bypass')
-    blocked(() => runner.validate('claude', [...claudeOk, '--permission-mode', 'bypassPermissions']), 'cmd.claude-bypass')
-  })
-
-  it('only lets Claude Code read extra folders inside the data dir', () => {
-    expect(() => runner.validate('claude', [...claudeOk, '--add-dir', path.join(DATA_DIR, 'workspaces', 'x', 'maps')])).not.toThrow()
-    blocked(() => runner.validate('claude', [...claudeOk, '--add-dir', os.homedir()]), 'write.outside-data-dir')
+    expect(() => runner.validate('claude', ['-p', '--tools', 'Read,Grep,Glob,Edit,Write,Bash', '--allowedTools', 'Read,Grep,Glob,Edit,Write,Bash', '--permission-mode', 'acceptEdits'])).not.toThrow()
+    blocked(() => runner.validate('claude', ['--tools', 'Read']), 'cmd.claude-headless')
   })
 
   const docsOk = ['-p', '--tools', CLAUDE_DOCS_BUILTINS.join(','), '--allowedTools', CLAUDE_DOCS_TOOLS.join(','), '--disallowedTools', CLAUDE_DOCS_DENIED.join(','), '--setting-sources', 'user']

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, waitJob, type Detection, type GitAuth, type Job, type TechId, type TechInfo, type Workspace } from '../api'
 import { DetectionView } from '../components/DetectionView'
 import { FolderBrowser } from '../components/FolderBrowser'
@@ -49,8 +49,8 @@ function Steps({ current }: { current: 0 | 1 | 2 }) {
 function ReadOnlyNote() {
   return (
     <div className="sf-callout green" style={{ marginBottom: 20 }}>
-      <strong>Somente leitura.</strong> O Agentic Toolkit nunca altera o código. Uma pasta local é lida no lugar; repositórios e .zip são copiados para o
-      diretório de dados do Agentic Toolkit e o push fica desativado. Arquivos de credenciais (<code>env.php</code>, <code>auth.json</code>, <code>.env</code>) são
+      <strong>Você decide o que muda.</strong> As telas de análise só leem o código. Uma pasta local é usada no lugar: o Git e o desenvolvimento por tarefa
+      escrevem nela, sempre a partir de um botão com confirmação. Repositórios e .zip são copiados para o diretório de dados do Agentic Toolkit e o push fica desativado. Arquivos de credenciais (<code>env.php</code>, <code>auth.json</code>, <code>.env</code>) são
       listados, mas nunca lidos.
     </div>
   )
@@ -414,6 +414,17 @@ function ConfigureStep({ id }: { id: string }) {
   const [job, setJob] = useState<Job | null>(null)
   const [own, setOwn] = useState<string[]>([])
   const [error, setError] = useState('')
+  const [repo, setRepo] = useState<{ effective: string | null; branch?: string; message?: string } | null>(null)
+  const [params] = useSearchParams()
+  // a change made in Configurações comes here to follow the analysis, then goes back
+  const back = params.get('retorno') === 'settings' ? `/w/${id}/settings` : `/w/${id}`
+
+  useEffect(() => {
+    api
+      .get<{ repo: { effective: string | null; branch?: string; message?: string } }>(`/workspaces/${id}/settings`)
+      .then((s) => setRepo(s.repo))
+      .catch(() => setRepo(null))
+  }, [id])
 
   const load = useCallback(async () => {
     const r = await api.get<{ workspace: Workspace; detection: Detection }>(`/workspaces/${id}`)
@@ -430,16 +441,16 @@ function ConfigureStep({ id }: { id: string }) {
       if (final.status === 'done' && w.status === 'analyzed') {
         await refresh()
         await loadOverview(id, true)
-        navigate(`/w/${id}`)
+        navigate(back)
       }
     },
-    [id, load, navigate, refresh, loadOverview],
+    [id, load, navigate, refresh, loadOverview, back],
   )
 
   useEffect(() => {
     load()
       .then((w) => {
-        if (w.status === 'analyzed') navigate(`/w/${id}`)
+        if (w.status === 'analyzed') navigate(back)
         else if ((w.status === 'connecting' || w.status === 'analyzing') && w.jobId) follow(w.jobId)
       })
       .catch((e) => setError(e.message))
@@ -448,7 +459,7 @@ function ConfigureStep({ id }: { id: string }) {
   const pickRoot = async (root: string) => {
     setError('')
     try {
-      await api.put(`/workspaces/${id}`, { root })
+      await api.put(`/workspaces/${id}/settings`, { root })
       await load()
     } catch (e) {
       setError((e as Error).message)
@@ -458,7 +469,7 @@ function ConfigureStep({ id }: { id: string }) {
   const analyze = async () => {
     setError('')
     try {
-      await api.put(`/workspaces/${id}`, { ownVendors: own })
+      await api.put(`/workspaces/${id}/settings`, { ownVendors: own })
       const r = await api.post<{ jobId: string }>(`/workspaces/${id}/analysis`)
       setWs((w) => (w ? { ...w, status: 'analyzing' } : w))
       follow(r.jobId)
@@ -522,6 +533,16 @@ function ConfigureStep({ id }: { id: string }) {
                 </button>
               ))}
               {vendors.length === 0 && <span className="sf-muted">Nenhum módulo em app/code.</span>}
+            </div>
+            <div className="sf-callout" style={{ marginBottom: 14 }}>
+              <div>
+                <strong>Repositório git:</strong>{' '}
+                {repo === null ? '…' : repo.effective ? <span className="sf-mono">{repo.effective}{repo.branch ? ` (${repo.branch})` : ''}</span> : 'não encontrado. O Git e o desenvolvimento por tarefa ficam indisponíveis até você informar o caminho do repositório.'}
+              </div>
+              <div style={{ marginTop: 4 }}>
+                Estas escolhas ficam em <strong>Configurações → Workspace</strong>, junto com o caminho do repositório git e as variáveis de ambiente, e podem ser editadas
+                depois. Mudar a pasta, o projeto ou os vendors lá inicia uma nova análise.
+              </div>
             </div>
             {analyzing && job ? (
               <JobProgress job={job} />

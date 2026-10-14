@@ -921,3 +921,89 @@ div.sf-kv > span:first-child { color: var(--sf-muted); min-width: 130px; }
 .sf-upd-item.tone-yellow { border-color: var(--sf-yellow); }
 .sf-upd-switch { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
 .sf-upd-switch input { accent-color: var(--sf-accent); }
+
+/* ---- attachments in the explore chat and the new-change form ------------------------- */
+.sf-attach { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sf-attach-thumb { position: relative; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; border: 1px solid var(--sf-border); background: var(--sf-bg); flex: none; display: block; }
+.sf-attach-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sf-attach-thumb button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 10px; line-height: 18px; padding: 0; cursor: pointer; }
+.sf-attach-thumb.large { width: 140px; height: 96px; }
+.sf-explore-compose { border-top: 1px solid var(--sf-border); padding-top: 10px; }
+
+/* ---- review of the complete proposal before creating it ------------------------------- */
+.sf-review { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 14px; min-height: 0; }
+.sf-review-files { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--sf-border); border-radius: 10px; padding: 6px; background: var(--sf-panel); align-self: start; max-height: 60vh; overflow-y: auto; font-size: 12.5px; }
+.sf-review-main { min-width: 0; }
+.sf-review-preview { height: 58vh; overflow: auto; border: 1px solid var(--sf-border); border-radius: 10px; padding: 14px 18px; background: var(--sf-panel); }
+.sf-review-editor { height: 58vh; }
+@media (max-width: 860px) { .sf-review { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Refinamento ---------------------------------------------------------------- */
+.sf-callout.blue { border-color: rgba(59, 130, 246, 0.35); background: var(--sf-blue-soft); }
+.sf-refine-board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; }
+.sf-refine-col { min-width: 0; }
+.sf-refine-col .sf-section-title { margin-top: 4px; justify-content: flex-start; gap: 6px; }
+.sf-refine-card { min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 7px; padding: 12px; margin-bottom: 10px; color: var(--sf-text); text-decoration: none; background: var(--sf-panel-2); transition: border-color 0.15s; }
+.sf-refine-card:hover { border-color: var(--sf-faint); }
+.sf-refine-card.is-live, .sf-devpanel.is-live { border-color: rgba(59, 130, 246, 0.55); box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25); animation: sf-live 2.4s ease-in-out infinite; }
+@keyframes sf-live { 50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); } }
+.sf-dev { display: flex; flex-direction: column; gap: 4px; }
+.sf-dev-bar { height: 7px; border-radius: 999px; background: var(--sf-hover); overflow: hidden; }
+.sf-dev-bar span { display: block; height: 100%; border-radius: 999px; background: var(--sf-green); transition: width 0.6s ease; }
+.sf-dev-bar.running span { background: linear-gradient(90deg, var(--sf-blue), #60a5fa, var(--sf-blue)); background-size: 200% 100%; animation: sf-dev-flow 1.4s linear infinite; }
+.sf-dev-bar.falhou span { background: var(--sf-red); }
+.sf-dev-bar.cancelado span, .sf-dev-bar.interrompido span { background: var(--sf-accent); }
+@keyframes sf-dev-flow { to { background-position: -200% 0; } }
+.sf-devpanel { padding: 16px; margin-top: 4px; background: var(--sf-panel-2); }
+.sf-dev-plan { margin: 10px 0 4px; padding-left: 0; list-style: none; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.sf-dev-plan li { color: var(--sf-muted); }
+.sf-dev-plan li.done { color: var(--sf-green); }
+.sf-dev-plan li.current { color: var(--sf-text); font-weight: 600; }
+.sf-dev-log { max-height: 220px; overflow: auto; font-family: var(--sf-mono); font-size: 11.5px; line-height: 1.6; padding: 8px 10px; margin-top: 6px; background: var(--sf-panel); border: 1px solid var(--sf-border); border-radius: 8px; }
+.sf-refine-child { gap: 10px; padding: 7px 4px; border-top: 1px solid var(--sf-border); color: var(--sf-text); text-decoration: none; font-size: 13px; }
+.sf-refine-child:first-of-type { border-top: 0; }
+.sf-refine-chat { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; margin-bottom: 12px; }
+.sf-refine-msg { padding: 10px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.55; }
+.sf-refine-msg.user { background: var(--sf-hover); align-self: flex-end; max-width: 85%; }
+.sf-refine-msg.assistant { background: var(--sf-panel-2); border: 1px solid var(--sf-border); }
+.sf-refine-doc { padding: 18px 20px; }
+.sf-refine-field { padding: 12px 0; border-top: 1px solid var(--sf-border); }
+.sf-refine-field h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--sf-muted); }
+.sf-refine-field.main h3 { color: var(--sf-accent); }
+.sf-refine-field ol, .sf-refine-field ul { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.6; }
+.sf-refine textarea.sf-input { resize: vertical; font-family: inherit; line-height: 1.5; }
+.sf-refine textarea.sf-mono { font-family: var(--sf-mono); font-size: 12.5px; }
+
+/* ---- Git ------------------------------------------------------------------------- */
+.sf-git-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px; }
+.sf-git-kpi { padding: 14px; display: flex; flex-direction: column; gap: 3px; }
+.sf-git-kpi span { font-size: 12px; color: var(--sf-muted); }
+.sf-git-kpi strong { font-size: 18px; overflow-wrap: anywhere; }
+.sf-git-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sf-git-cols .sf-section-title { margin-top: 4px; }
+.sf-git tr.sf-git-focus td { background: var(--sf-blue-soft); }
+.sf-git .sf-link:disabled, .sf-refine .sf-link:disabled { opacity: 0.45; cursor: default; }
+@media (max-width: 1100px) { .sf-refine-board { grid-template-columns: repeat(2, minmax(220px, 1fr)); } .sf-git-kpis { grid-template-columns: repeat(2, 1fr); } .sf-git-cols { grid-template-columns: 1fr; } }
+
+/* ---- Pré-requisitos ------------------------------------------------------------- */
+.sf-prereq-strip { padding: 12px 28px 0; }
+.sf-prereq-strip:empty { display: none; }
+.sf-prereq { font-size: 13px; }
+.sf-prereq-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--sf-border); }
+.sf-prereq-item:first-of-type { border-top: 0; }
+.sf-prereq-item .sf-btn { white-space: nowrap; text-decoration: none; }
+
+/* ---- Configurações do workspace -------------------------------------------------- */
+.sf-ws-settings { padding: 0; overflow: hidden; margin-bottom: 16px; }
+.sf-ws-section { padding: 18px 20px; border-top: 1px solid var(--sf-border); scroll-margin-top: 16px; transition: background 0.6s; }
+.sf-ws-section:first-child { border-top: 0; }
+.sf-ws-section.focus { background: var(--sf-blue-soft); }
+.sf-ws-section h3 { margin: 0 0 4px; font-size: 14px; }
+.sf-ws-section > p { margin: 0 0 12px; font-size: 12.5px; color: var(--sf-faint); }
+.sf-ws-grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 14px; align-items: center; font-size: 13px; }
+.sf-ws-grid > span { color: var(--sf-muted); }
+.sf-ws-env { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(200px, 2fr) auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.sf-ws-foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--sf-border); background: var(--sf-panel); }
+@media (max-width: 800px) { .sf-ws-grid { grid-template-columns: 1fr; } .sf-ws-env { grid-template-columns: 1fr 1fr; } }
+.sf-ws-anchor { scroll-margin-top: 16px; }
+.sf-ws-anchor.focus > .sf-card { background: var(--sf-blue-soft); transition: background 0.6s; }

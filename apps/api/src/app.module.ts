@@ -20,6 +20,13 @@ import { OpenSpecAuthoringService } from './openspec/openspec-authoring.service'
 import { SfccController } from './techs/sfcc/sfcc.controller'
 import { SfccService } from './techs/sfcc/sfcc.service'
 import { TechsController } from './techs/techs.controller'
+import { GitOpsController } from './gitops/gitops.controller'
+import { GitOpsService } from './gitops/gitops.service'
+import { RefineController } from './refine/refine.controller'
+import { WorkspaceEnvService } from './settings/workspace-env.service'
+import { WorkspaceSettingsController } from './settings/workspace-settings.controller'
+import { WorkspaceSettingsService } from './settings/workspace-settings.service'
+import { RefineService } from './refine/refine.service'
 import { NewsController } from './news/news.controller'
 import { NewsService } from './news/news.service'
 import { SecurityBulletinTopic } from './news/security-bulletin.topic'
@@ -48,7 +55,7 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, RefineController, WorkspaceSettingsController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
@@ -80,6 +87,10 @@ import { ZipService } from './workspaces/zip.service'
     SfccService,
     NewsService,
     SecurityBulletinTopic,
+    GitOpsService,
+    RefineService,
+    WorkspaceEnvService,
+    WorkspaceSettingsService,
   ],
 })
 export class AppModule {}

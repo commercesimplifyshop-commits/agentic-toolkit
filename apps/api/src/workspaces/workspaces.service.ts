@@ -31,6 +31,8 @@ export interface Workspace {
   edition?: string
   version?: string
   ownVendors: string[]
+  /** Git repository used by Git and by the development of tasks, when it is not the folder that holds the project */
+  repoPath?: string
   status: 'connecting' | 'needs-root' | 'ready' | 'analyzing' | 'analyzed' | 'error'
   error?: string
   jobId?: string
@@ -254,6 +256,40 @@ export class WorkspacesService {
     if (input.ownVendors) this.update(ws, { ownVendors: input.ownVendors.filter((v) => /^\w+$/.test(v)) })
     if (input.name) this.update(ws, { name: input.name.slice(0, 80) })
     return ws
+  }
+
+  /**
+   * Points the workspace at a local folder (the engineer's own clone, for example), instead of the
+   * copy it was made from. The copy the Agentic Toolkit made (clone or .zip) is deleted; the
+   * project root is detected again in the new folder.
+   */
+  linkLocal(id: string, dir: string) {
+    const ws = this.get(id)
+    const folder = path.resolve(dir)
+    if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new BadRequestException(`Pasta não encontrada: ${folder}`)
+    assertDataDirOutside(folder)
+    const previous = ws.source.type === 'local' ? null : ws.checkoutDir
+    this.update(ws, { source: { type: 'local', path: folder }, checkoutDir: folder, root: undefined, status: 'connecting', error: undefined, jobId: undefined })
+    this.applyDetection(ws, detectTech(ws.tech, this.rofs, folder))
+    if (previous && previous !== folder) {
+      try {
+        assertWritableTarget(previous)
+        fs.rmSync(previous, { recursive: true, force: true })
+      } catch {
+        // a leftover copy in the data dir is harmless
+      }
+    }
+    return ws
+  }
+
+  /** The git repository for Git and development; empty means "the one that contains the project" */
+  setRepoPath(id: string, dir: string | undefined) {
+    const ws = this.get(id)
+    if (!dir) return this.update(ws, { repoPath: undefined })
+    const folder = path.resolve(dir)
+    if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new BadRequestException(`Pasta não encontrada: ${folder}`)
+    assertDataDirOutside(folder)
+    return this.update(ws, { repoPath: folder })
   }
 
   detection(id: string) {

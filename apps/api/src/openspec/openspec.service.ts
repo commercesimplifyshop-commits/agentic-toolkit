@@ -390,14 +390,46 @@ export class OpenSpecService {
         }
       case 'apply': {
         const name = safe(change)
+        // The prompt carries the change itself, so it works even where /opsx:apply is not installed
+        const detail = this.change(id, name)
+        const why = section(detail.proposal, 'Why').trim()
+        const requirements = detail.deltas.flatMap((d) => {
+          const delta = parseDelta(d.content)
+          return [
+            ...delta.added.map((r) => `- ${d.capability}: ${r} (novo)`),
+            ...delta.modified.map((r) => `- ${d.capability}: ${r} (alterado)`),
+            ...delta.removed.map((r) => `- ${d.capability}: ${r} (removido)`),
+          ]
+        })
+        const projectRules =
+          ws.tech === 'salesforce-b2c'
+            ? 'Siga o padrão do projeto: código novo nos cartuchos próprios, sem copiar controllers do SFRA (use server.append, server.replace ou hooks), e respeite o cartridge path.'
+            : `Siga o padrão do projeto: código customizado nos módulos próprios${ws.ownVendors.length ? ` (${ws.ownVendors.join(', ')})` : ''}, sem editar vendor/ nem o core; prefira plugins, observers, preferences e di.xml como o projeto já faz.`
         return {
           title: `Implementar ${name}`,
           text: [
             context,
-            `Implemente a mudança \`${name}\` com \`/opsx:apply ${name}\`.`,
-            `Siga as tarefas de \`openspec/changes/${name}/tasks.md\` e marque cada uma como concluída assim que terminar.`,
+            `Você vai implementar a mudança \`${name}\` do OpenSpec. Os artefatos estão em \`${detail.dir}/\`:`,
+            ...detail.files.filter((f) => !f.startsWith('.')).map((f) => `- ${f}`),
+            '',
+            'Como trabalhar:',
+            `1. Rode \`/opsx:apply ${name}\`. Se o comando não existir, leia os arquivos acima e siga o mesmo fluxo manualmente.`,
+            '2. Leia a proposta, o design (se houver) e as specs antes de tocar no código. Se algo estiver ambíguo, pergunte antes de seguir.',
+            '3. Faça as tarefas na ordem do tasks.md, uma de cada vez. Ao concluir cada uma, marque "- [x]" no tasks.md e mostre o que mudou.',
+            `4. ${projectRules}`,
+            '5. Cada cenário das specs (WHEN/THEN) precisa ser verificado: por teste automatizado ou pelo roteiro manual descrito nas tarefas.',
+            `6. No fim, rode \`openspec validate ${name}\` e mostre um resumo: tarefas concluídas, arquivos alterados e como testar.`,
+            '',
+            why ? `Por que esta mudança existe:\n${why}` : '',
+            '',
+            requirements.length ? `Requisitos que precisam ser atendidos (${requirements.length}):\n${requirements.join('\n')}` : '',
+            '',
+            `Tarefas (tasks.md, ${detail.tasks.done} de ${detail.tasks.total} concluídas):\n${detail.tasks.raw.trim()}`,
+            '',
             guard,
-          ].join('\n'),
+          ]
+            .filter((l, i, all) => l !== '' || all[i - 1] !== '')
+            .join('\n'),
         }
       }
       case 'validate': {

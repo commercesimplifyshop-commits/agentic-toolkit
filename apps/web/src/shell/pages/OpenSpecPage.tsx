@@ -1,32 +1,42 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
-import { ChangeDraft, InstallModal, NewChangeModal, NewSpecModal } from './OpenSpecWrite'
+import { InstallModal, NewSpecModal } from './OpenSpecWrite'
 import { OpenSpecExplore } from './OpenSpecExplore'
 import { OpenSpecTour } from './OpenSpecTour'
 import { ChangeStages, OpenSpecTree, SpecCards, changeHref, specHref } from './OpenSpecExplorer'
+import { NewChangeStart, ProposalReview, type Attached, type ProposalPackage } from './OpenSpecPropose'
 import { CHANGE_LABEL, type Overview } from './openspec-model'
+
+interface ExploreMeta {
+  id: string
+  title: string
+  updatedAt: string
+  turns: number
+  linkedChange: string | null
+}
 
 /**
  * The OpenSpec home: the folder structure on the left, the progress of every change and spec on the right.
- * Changes and specs open their own pages (the workspace); the actions that create things live in the header.
+ * A new change starts as a conversation (the task is refined with Claude), then becomes a complete
+ * proposal the engineer reviews before it is created.
  */
 export function OpenSpecPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [data, setData] = useState<Overview | null>(null)
+  const [explores, setExplores] = useState<ExploreMeta[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [prompt, setPrompt] = useState<{ title: string; text: string } | null>(null)
   const [installing, setInstalling] = useState(false)
-  const [creatingChange, setCreatingChange] = useState(false)
+  const [starting, setStarting] = useState(false)
   const [creatingSpec, setCreatingSpec] = useState(false)
-  const [capture, setCapture] = useState('')
-  /** The explore drawer: a conversation, or null for a new one */
-  const [chat, setChat] = useState<{ sid: string | null } | null>(null)
-  const [captureSid, setCaptureSid] = useState<string | null>(null)
-  /** Facilitator draft for the change form, built from the conversation of a card */
-  const [draft, setDraft] = useState<ChangeDraft | null>(null)
+  /** The explore drawer: a conversation, a new one, or a new one that starts with the task text */
+  const [chat, setChat] = useState<{ sid: string | null; startWith?: { message: string; attachments: Attached[] } } | null>(null)
+  /** The complete change Claude wrote, waiting for review, and the conversation it came from */
+  const [review, setReview] = useState<{ pkg: ProposalPackage; sid: string } | null>(null)
+  const [proposing, setProposing] = useState(false)
   const [panel, setPanel] = useState<'config' | 'tour' | null>(null)
 
   const load = useCallback(() => {
@@ -34,25 +44,25 @@ export function OpenSpecPage() {
       .get<Overview>(`/workspaces/${id}/openspec`)
       .then(setData)
       .catch((e) => setError(e.message))
+    api
+      .get<ExploreMeta[]>(`/workspaces/${id}/openspec/explore/sessions`)
+      .then(setExplores)
+      .catch(() => undefined)
   }, [id])
 
   useEffect(load, [load])
 
-  /**
-   * Propor: the facilitator reads the whole conversation and drafts the proposal (name, why,
-   * what changes, capabilities). The form opens filled; nothing is created until the user confirms.
-   */
+  /** Claude reads the whole conversation and writes the complete change; it opens for review, nothing is created yet */
   const proposeFrom = async (sid: string) => {
-    setNotice('Gerando o rascunho da proposta a partir da conversa…')
+    setProposing(true)
+    setError('')
     try {
-      const d = await api.post<ChangeDraft>(`/workspaces/${id}/openspec/explore/propose`, { sessionId: sid })
-      setNotice('')
-      setDraft(d)
-      setCaptureSid(sid)
-      setCreatingChange(true)
+      const pkg = await api.post<ProposalPackage>(`/workspaces/${id}/openspec/explore/propose`, { sessionId: sid })
+      setReview({ pkg, sid })
     } catch (e) {
-      setNotice('')
       setError((e as Error).message)
+    } finally {
+      setProposing(false)
     }
   }
 
@@ -69,6 +79,7 @@ export function OpenSpecPage() {
   if (!data) return <div className="sf-page"><span className="sf-spinner" /></div>
 
   const withErrors = data.changes.filter((c) => c.validation && !c.validation.valid)
+  const open = explores.filter((e) => !e.linkedChange)
 
   return (
     <div className="sf-page sf-openspec">
@@ -88,20 +99,14 @@ export function OpenSpecPage() {
         </div>
         {data.installed && (
           <div className="sf-row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button
-              className="sf-btn small accent"
-              onClick={() => {
-                setDraft(null)
-                setCreatingChange(true)
-              }}
-            >
+            <button className="sf-btn small accent" onClick={() => setStarting(true)} disabled={proposing}>
               + Nova mudança
+            </button>
+            <button className="sf-btn small" onClick={() => setChat({ sid: null })} disabled={proposing}>
+              ✦ Explorar
             </button>
             <button className="sf-btn small" onClick={() => setCreatingSpec(true)}>
               + Nova spec
-            </button>
-            <button className="sf-btn small" onClick={() => setChat({ sid: null })}>
-              ✦ Explorar
             </button>
             <button className="sf-btn small" onClick={() => setPanel('tour')}>
               Como funciona
@@ -115,6 +120,11 @@ export function OpenSpecPage() {
 
       {error && <div className="sf-callout red" style={{ marginBottom: 12 }}>{error}</div>}
       <Notice text={notice} onClose={() => setNotice('')} />
+      {proposing && (
+        <div className="sf-callout orange" style={{ marginBottom: 12 }} role="status">
+          <span className="sf-spinner" /> O Claude está escrevendo a mudança completa (proposta, tarefas e specs) a partir da conversa. Isso leva de 1 a 4 minutos; a revisão abre quando terminar.
+        </div>
+      )}
 
       {!data.installed ? (
         <NotInstalled id={id} onInstall={() => setInstalling(true)} onPrompt={() => askPrompt('install')} onMapped={() => (load(), setNotice('Pasta mapeada. O painel já lê o OpenSpec dela.'))} onError={setError} />
@@ -137,11 +147,44 @@ export function OpenSpecPage() {
                 ))}
               </div>
             )}
+
+            {open.length > 0 && (
+              <section className="sf-stages" aria-label="Refinamentos em andamento">
+                <div className="sf-stages-head">
+                  <span className="sf-stages-bar orange" />
+                  <strong>Refinando com o Claude</strong>
+                  <span className="sf-stages-count">{open.length}</span>
+                </div>
+                <div className="sf-stages-grid">
+                  {open.slice(0, 6).map((e) => (
+                    <article key={e.id} className="sf-stage-card">
+                      <div className="sf-stage-top">
+                        <button className="sf-stage-name" onClick={() => setChat({ sid: e.id })}>
+                          {e.title}
+                        </button>
+                      </div>
+                      <div className="sf-faint" style={{ fontSize: 12, marginBottom: 10 }}>
+                        {(e.turns / 2) | 0} trocas · {new Date(e.updatedAt).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="sf-row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                        <button className="sf-btn small" onClick={() => setChat({ sid: e.id })} disabled={proposing}>
+                          Continuar conversa
+                        </button>
+                        <button className="sf-btn small accent" onClick={() => proposeFrom(e.id)} disabled={proposing || e.turns < 2}>
+                          ✦ Transformar em proposta
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <ChangeStages id={id} data={data} />
             <SpecCards id={id} data={data} />
-            {data.changes.length === 0 && data.specs.length === 0 && (
+            {data.changes.length === 0 && data.specs.length === 0 && open.length === 0 && (
               <div className="sf-card sf-faint" style={{ padding: 18 }}>
-                Ainda não há mudanças nem specs. Use <b>+ Nova mudança</b> ou <b>✦ Explorar</b> para começar.
+                Ainda não há mudanças nem specs. Use <b>+ Nova mudança</b>: cole a tarefa como ela chegou e o Claude ajuda a refinar e a montar a proposta.
               </div>
             )}
             {data.changes.some((c) => c.status === 'pronta') && (
@@ -173,16 +216,48 @@ export function OpenSpecPage() {
         </Drawer>
       )}
       {chat && (
-        <Drawer title={chat.sid ? 'Exploração' : 'Explorar mudança'} subtitle="Conversa" onClose={() => setChat(null)}>
+        <Drawer
+          title={chat.startWith ? 'Refinar a nova mudança' : chat.sid ? 'Exploração' : 'Explorar'}
+          subtitle="Conversa com o Claude"
+          onClose={() => {
+            setChat(null)
+            load()
+          }}
+        >
           <OpenSpecExplore
             id={id}
             initialSession={chat.sid}
+            startWith={chat.startWith ?? null}
+            onChanged={load}
             onCapture={(_text, sid) => {
+              if (!sid) return
               setChat(null)
-              if (sid) proposeFrom(sid)
+              void proposeFrom(sid)
             }}
           />
         </Drawer>
+      )}
+      {starting && data.installed && (
+        <NewChangeStart
+          workspaceId={id}
+          onClose={() => setStarting(false)}
+          onStart={(startWith) => {
+            setStarting(false)
+            setChat({ sid: null, startWith })
+          }}
+        />
+      )}
+      {review && (
+        <ProposalReview
+          workspaceId={id}
+          pkg={review.pkg}
+          onClose={() => setReview(null)}
+          onCreated={(name) => {
+            api.put(`/workspaces/${id}/openspec/explore/session`, { id: review.sid, linkedChange: name }).catch(() => undefined)
+            setReview(null)
+            navigate(changeHref(id, name))
+          }}
+        />
       )}
       {installing && (
         <InstallModal
@@ -192,30 +267,6 @@ export function OpenSpecPage() {
             setInstalling(false)
             load()
             setNotice('OpenSpec instalado: openspec/ e os comandos do Claude foram criados.')
-          }}
-        />
-      )}
-      {creatingChange && data.installed && (
-        <NewChangeModal
-          id={id}
-          initialWhy={capture}
-          draft={draft}
-          specs={data.specs.map((sp) => sp.id)}
-          onClose={() => {
-            setCreatingChange(false)
-            setCapture('')
-            setCaptureSid(null)
-            setDraft(null)
-          }}
-          onCreated={(name) => {
-            if (captureSid) {
-              api.put(`/workspaces/${id}/openspec/explore/session`, { id: captureSid, linkedChange: name }).catch(() => undefined)
-            }
-            setCreatingChange(false)
-            setCapture('')
-            setCaptureSid(null)
-            setDraft(null)
-            navigate(changeHref(id, name))
           }}
         />
       )}
@@ -338,8 +389,8 @@ function Config({ data, id, onPrompt, onChanged, onError }: { data: Overview; id
 
 function Drawer({ title, subtitle, children, onClose }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void }) {
   return (
-    <div className="sf-drawer-back" onClick={onClose}>
-      <aside className="sf-drawer" onClick={(e) => e.stopPropagation()}>
+    <div className="sf-drawer-back">
+      <aside className="sf-drawer">
         <div className="sf-drawer-head">
           <div>
             <div className="sf-faint" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>

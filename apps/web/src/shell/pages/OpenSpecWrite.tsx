@@ -203,131 +203,6 @@ export function InstallModal({ id, onDone, onClose }: { id: string; onDone: () =
 
 // ---- new change and new spec -----------------------------------------------------------------------
 
-const lines = (s: string) =>
-  s
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-
-export interface ChangeDraft {
-  name: string
-  why: string
-  whatChanges: string[]
-  newCapabilities: string[]
-  modifiedCapabilities: string[]
-  purposes: Record<string, string>
-  notes: string[]
-}
-
-export function NewChangeModal({
-  id,
-  specs,
-  initialWhy,
-  draft,
-  onCreated,
-  onClose,
-}: {
-  id: string
-  specs: string[]
-  /** Draft from the explore conversation (facilitator); the user reviews it before creating */
-  draft?: ChangeDraft | null
-  /** Text captured from an explore conversation, offered as the starting "porquê" */
-  initialWhy?: string
-  onCreated: (name: string) => void
-  onClose: () => void
-}) {
-  const [name, setName] = useState(draft?.name ?? '')
-  const [why, setWhy] = useState(draft?.why ?? (initialWhy ?? '').slice(0, 1500))
-  const [what, setWhat] = useState((draft?.whatChanges ?? []).join('\n'))
-  const [newCaps, setNewCaps] = useState((draft?.newCapabilities ?? []).join('\n'))
-  const [modCaps, setModCaps] = useState<string[]>(draft?.modifiedCapabilities ?? [])
-  const [noSpecs, setNoSpecs] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const hasCaps = lines(newCaps).length + modCaps.length > 0
-  // OpenSpec rejects a change with no deltas unless it says so explicitly
-  const canCreate = Boolean(name.trim() && why.trim()) && (hasCaps || noSpecs) && !(hasCaps && noSpecs)
-
-  const create = async () => {
-    setBusy(true)
-    setError('')
-    try {
-      await api.post(`/workspaces/${id}/openspec/change`, {
-        name: name.trim(),
-        why,
-        whatChanges: lines(what),
-        newCapabilities: lines(newCaps),
-        modifiedCapabilities: modCaps,
-        purposes: draft?.purposes ?? {},
-        skipSpecs: noSpecs,
-      })
-      onCreated(name.trim())
-    } catch (e) {
-      setError((e as Error).message)
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Modal title="Nova mudança" onClose={onClose}>
-      <p className="sf-muted" style={{ fontSize: 13, marginTop: 0 }}>
-        Cria a proposta, as tarefas e os deltas de spec a partir do modelo do OpenSpec. Depois você edita cada arquivo, ou pede um rascunho ao Claude.
-      </p>
-      {draft && (
-        <div className="sf-callout" style={{ fontSize: 12.5, marginBottom: 12 }}>
-          <b>Rascunho do Claude a partir da conversa.</b> Revise os campos antes de criar.
-          {draft.notes.map((n, i) => (
-            <div key={i} style={{ marginTop: 4 }}>
-              {n}
-            </div>
-          ))}
-        </div>
-      )}
-      <label className="sf-field">
-        <span>Nome (kebab-case)</span>
-        <input className="sf-input sf-mono" value={name} onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="adicionar-pix" />
-      </label>
-      <label className="sf-field">
-        <span>Porquê</span>
-        <textarea className="sf-input" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} />
-      </label>
-      <label className="sf-field">
-        <span>O que muda (uma linha por item)</span>
-        <textarea className="sf-input" rows={3} value={what} onChange={(e) => setWhat(e.target.value)} />
-      </label>
-      <label className="sf-field">
-        <span>Capacidades novas (caminho, uma por linha)</span>
-        <textarea className="sf-input sf-mono" rows={2} value={newCaps} onChange={(e) => setNewCaps(e.target.value)} placeholder="pagamento/pix" />
-      </label>
-      <div className="sf-field">
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#c9c9cf' }}>Capacidades modificadas</span>
-        {specs.length === 0 && <small>Nenhuma spec existe ainda: use capacidades novas.</small>}
-        <div className="sf-row" style={{ flexWrap: 'wrap', gap: 10 }}>
-          {specs.map((s) => (
-            <label key={s} className="sf-apic-check">
-              <input type="checkbox" checked={modCaps.includes(s)} onChange={(e) => setModCaps(e.target.checked ? [...modCaps, s] : modCaps.filter((x) => x !== s))} /> <span className="sf-mono">{s}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-      <label className="sf-apic-check" style={{ marginBottom: 10 }}>
-        <input type="checkbox" checked={noSpecs} disabled={hasCaps} onChange={(e) => setNoSpecs(e.target.checked)} />{' '}
-        Esta mudança não altera specs (documentação, refatoração, ferramentas)
-      </label>
-      {!hasCaps && !noSpecs && <div className="sf-faint" style={{ fontSize: 12, marginBottom: 8 }}>Escolha ao menos uma capacidade alterada, ou marque a opção acima.</div>}
-      {error && <div className="sf-callout red" style={{ marginBottom: 10 }}>{error}</div>}
-      <div className="sf-row" style={{ justifyContent: 'flex-end' }}>
-        <button className="sf-btn" onClick={onClose} disabled={busy}>
-          Cancelar
-        </button>
-        <button className="sf-btn accent" onClick={create} disabled={busy || !canCreate}>
-          Criar mudança
-        </button>
-      </div>
-    </Modal>
-  )
-}
-
 export function NewSpecModal({ id, onCreated, onClose }: { id: string; onCreated: (capability: string) => void; onClose: () => void }) {
   const [capability, setCapability] = useState('')
   const [purpose, setPurpose] = useState('')
@@ -372,8 +247,8 @@ export function NewSpecModal({ id, onCreated, onClose }: { id: string; onCreated
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="sf-drawer-back" onClick={onClose} style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <div className="sf-prompt-modal" style={{ width: 'min(620px, calc(100vw - 32px))' }} onClick={(e) => e.stopPropagation()}>
+    <div className="sf-drawer-back" style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <div className="sf-prompt-modal" style={{ width: 'min(620px, calc(100vw - 32px))' }}>
         <div className="sf-drawer-head">
           <h2 style={{ margin: 0, fontSize: 16 }}>{title}</h2>
           <button className="sf-link" onClick={onClose} style={{ fontSize: 18 }}>

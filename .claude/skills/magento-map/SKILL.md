@@ -5,7 +5,7 @@ description: Analisa as customizações de uma instalação Magento 2 já conect
 
 # Analisar uma instalação no Agentic Toolkit
 
-**Regra crítica: somente leitura.** Nunca edite, mova ou apague nada dentro da instalação Magento. Tudo o que você grava vai para o diretório de dados do Agentic Toolkit (`~/.agentic-toolkit`, ou `AGENTIC_TOOLKIT_DATA`).
+**Esta skill só lê.** Nunca edite, mova ou apague nada dentro da instalação Magento. Tudo o que você grava vai para o diretório de dados do Agentic Toolkit (`~/.agentic-toolkit`, ou `AGENTIC_TOOLKIT_DATA`).
 
 Argumentos: `[workspace-id] [zona]`. Sem id, liste as instalações com `curl -s http://127.0.0.1:4310/api/workspaces` (ou leia `~/.agentic-toolkit/core/workspaces.json`) e pergunte qual.
 

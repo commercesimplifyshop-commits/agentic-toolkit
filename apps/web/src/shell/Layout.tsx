@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { FEATURE_NEEDS, PrereqNotice } from './prereqs'
 import { IdeLayer } from './ide/IdeLayer'
 import { initials, useShell } from './store'
 
@@ -24,6 +25,8 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
       { to: 'code', label: 'Explorador de código', icon: '{ }' },
       { to: 'diagrams', label: 'Diagramas de arquitetura', icon: '⬡' },
       { to: 'openspec', label: 'OpenSpec', icon: '◎' },
+      { to: 'refinamento', label: 'Refinamento', icon: '✓' },
+      { to: 'git', label: 'Git', icon: '⎇' },
     ],
   },
   {
@@ -83,6 +86,8 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
       { to: 'diagrams', label: 'Diagramas de arquitetura', icon: '⬡' },
       { to: 'board', label: 'Quadro branco', icon: '✎' },
       { to: 'openspec', label: 'OpenSpec', icon: '◎' },
+      { to: 'refinamento', label: 'Refinamento', icon: '✓' },
+      { to: 'git', label: 'Git', icon: '⎇' },
       { to: 'api-client', label: 'Simulador de API', icon: '➤' },
     ],
   },
@@ -152,7 +157,7 @@ export function Layout() {
   }, [loaded, ws, id, navigate, loadOverview])
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
-  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
+  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub.startsWith('refinamento/') ? 'Refinamento' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
   const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams'].includes(sub)
 
   return (
@@ -222,9 +227,9 @@ export function Layout() {
             <span className="sf-nav-icon">⚙</span>
             <span className="sf-nav-label">Configurações</span>
           </NavLink>
-          <div className="sf-readonly-pill" title="O Agentic Toolkit nunca escreve no código Magento">
-            <span className="dot" /> <span className="sf-nav-label">Somente leitura</span>
-          </div>
+          <NavLink to={`/w/${id}/audit`} className="sf-readonly-pill" title="Toda ação é declarada e auditada. Escrita no código só no Git e no desenvolvimento das tarefas, com confirmação.">
+            <span className="dot" /> <span className="sf-nav-label">Ações auditadas</span>
+          </NavLink>
         </div>
       </nav>
 
@@ -234,6 +239,11 @@ export function Layout() {
           <span className="sep">›</span>
           <b>{title}</b>
         </div>
+        {ws?.status === 'analyzed' && FEATURE_NEEDS[sub.split('/')[0]] && (
+          <div className="sf-prereq-strip">
+            <PrereqNotice workspaceId={id} feature={sub.split('/')[0]} />
+          </div>
+        )}
         <div className="sf-content" style={fullBleed ? { overflow: 'hidden' } : undefined}>
           {ws?.status === 'analyzed' && <Outlet />}
         </div>
