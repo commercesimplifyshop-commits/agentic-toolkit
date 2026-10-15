@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { PrereqLink } from '../prereqs'
+import { PullRequestList } from './PullRequests'
 
 /** Mirrors apps/api/src/gitops/gitops.service.ts */
 interface Branch {
@@ -62,6 +63,7 @@ export function GitPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ tone: 'red' | 'green' | 'orange'; text: string } | null>(null)
   const [creating, setCreating] = useState(false)
+  const [query, setQuery] = useState('')
 
   const load = useCallback(
     () =>
@@ -80,6 +82,18 @@ export function GitPage() {
     if (!focus || !ov?.repo) return
     document.getElementById(`branch-${focus}`)?.scrollIntoView({ block: 'center' })
   }, [focus, ov])
+
+  const q = query.trim().toLowerCase()
+  const shownBranches = useMemo(() => (ov?.repo ? ov.branches.filter((b) => !q || b.name.toLowerCase().includes(q) || b.subject.toLowerCase().includes(q)) : []), [ov, q])
+  /** Branches that exist only on a remote (origin/feature-x without a local feature-x) */
+  const remoteOnly = useMemo(() => {
+    if (!ov?.repo || !q) return []
+    const local = new Set(ov.branches.map((b) => b.name))
+    return ov.remoteBranches
+      .map((r) => ({ ref: r, name: r.replace(/^[^/]+\//, '') }))
+      .filter((r) => !local.has(r.name) && r.ref.toLowerCase().includes(q))
+      .slice(0, 50)
+  }, [ov, q])
 
   /** Runs an action, shows how it went and reloads the overview */
   const act = async (label: string, run: () => Promise<unknown>, done: string) => {
@@ -246,7 +260,25 @@ export function GitPage() {
         </table>
       </div>
 
-      <div className="sf-section-title">Branches locais ({ov.branches.length})</div>
+      <PullRequestList workspaceId={id} />
+
+      <div className="sf-row sf-git-branches-head">
+        <div className="sf-section-title" style={{ margin: 0 }}>
+          Branches locais ({q ? `${shownBranches.length} de ${ov.branches.length}` : ov.branches.length})
+        </div>
+        <div className="sf-git-search">
+          <span aria-hidden>⌕</span>
+          <input
+            className="sf-input"
+            type="search"
+            placeholder="Pesquisar branch (nome ou último commit), inclusive nos remotos"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            aria-label="Pesquisar branches"
+          />
+        </div>
+      </div>
       <div className="sf-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
         <table className="sf-table">
           <thead>
@@ -258,7 +290,14 @@ export function GitPage() {
             </tr>
           </thead>
           <tbody>
-            {ov.branches.map((b) => (
+            {shownBranches.length === 0 && (
+              <tr>
+                <td colSpan={4} className="sf-faint" style={{ fontSize: 13 }}>
+                  Nenhuma branch local com "{query}".
+                </td>
+              </tr>
+            )}
+            {shownBranches.map((b) => (
               <tr key={b.name} id={`branch-${b.name}`} className={b.name === focus ? 'sf-git-focus' : ''}>
                 <td>
                   <span className="sf-mono">{b.name}</span> {b.current && <span className="sf-badge green">atual</span>}
@@ -310,6 +349,33 @@ export function GitPage() {
           </tbody>
         </table>
       </div>
+
+      {remoteOnly.length > 0 && (
+        <>
+          <div className="sf-section-title">Só no remoto ({remoteOnly.length})</div>
+          <div className="sf-card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+            <table className="sf-table">
+              <tbody>
+                {remoteOnly.map((r) => (
+                  <tr key={r.ref}>
+                    <td className="sf-mono">{r.ref}</td>
+                    <td>
+                      <span className="sf-row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                        <button className="sf-link" disabled={!!busy} onClick={() => act('checkout', () => api.post(`/workspaces/${id}/git/checkout`, { branch: r.name }), `Pasta principal agora em ${r.name}, acompanhando ${r.ref}.`)}>
+                          Checkout
+                        </button>
+                        <button className="sf-link" disabled={!!busy} onClick={() => act('wtadd', () => api.post(`/workspaces/${id}/git/worktree`, { branch: r.name }), `Worktree criado para ${r.name}.`)}>
+                          Criar worktree
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <div className="sf-git-cols">
         <div>

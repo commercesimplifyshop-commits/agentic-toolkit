@@ -337,6 +337,41 @@ export const ACTIONS = {
       if (typeof (ctx.req.body ?? {}).branch !== 'string') fail('Informe a branch', 'input.git-branch')
     },
   },
+  'git.github.connect': {
+    kind: 'external',
+    methods: ['POST', 'DELETE'],
+    description: 'Conecta (ou desconecta) o GitHub do repositório com a credencial do git desta máquina ou um token informado; a credencial fica só em memória',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (ctx.req.method === 'POST' && !['git-credential', 'token'].includes(String(b.source))) fail('Escolha de onde vem a credencial', 'input.github-source')
+      if (b.token !== undefined && (typeof b.token !== 'string' || b.token.length > 255)) fail('Token inválido', 'input.github-token')
+    },
+  },
+  'git.prs.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lê as pull requests do repositório no GitHub: lista, arquivos com o diff, revisões, comentários e checks',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const n = ctx.req.params.number
+      if (n !== undefined && !/^\d{1,9}$/.test(String(n))) fail('Pull request inválida', 'input.pr-number')
+    },
+  },
+  'git.prs.review': {
+    kind: 'external',
+    methods: ['POST'],
+    description: 'Envia uma revisão de pull request ao GitHub (aprovar, solicitar alterações ou comentar, com comentários de linha) ou responde a um comentário',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      if (!/^\d{1,9}$/.test(String(ctx.req.params.number ?? ''))) fail('Pull request inválida', 'input.pr-number')
+      const c = ctx.req.params.commentId
+      if (c !== undefined && !/^\d{1,15}$/.test(String(c))) fail('Comentário inválido', 'input.pr-comment')
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.event !== undefined && !['APPROVE', 'REQUEST_CHANGES', 'COMMENT'].includes(String(b.event))) fail('Tipo de revisão inválido', 'input.pr-event')
+      if (b.comments !== undefined && (!Array.isArray(b.comments) || b.comments.length > 100)) fail('Até 100 comentários por revisão', 'input.pr-comments')
+    },
+  },
   'refine.read': {
     kind: 'read',
     methods: ['GET'],

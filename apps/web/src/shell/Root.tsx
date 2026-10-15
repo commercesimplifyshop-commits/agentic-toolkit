@@ -29,6 +29,7 @@ const SfccPage = lazy(() => import('./pages/SfccPages').then((m) => ({ default: 
 const SfccUploadPage = lazy(() => import('./pages/SfccUploadPage').then((m) => ({ default: m.SfccUploadPage })))
 const UpdatesPage = lazy(() => import('./pages/UpdatesPage').then((m) => ({ default: m.UpdatesPage })))
 const GitPage = lazy(() => import('./pages/GitPage').then((m) => ({ default: m.GitPage })))
+const PullRequestPage = lazy(() => import('./pages/PullRequests').then((m) => ({ default: m.PullRequestPage })))
 const RefinePage = lazy(() => import('./pages/RefinePage').then((m) => ({ default: m.RefinePage })))
 const RefineCardPage = lazy(() => import('./pages/RefinePage').then((m) => ({ default: m.RefineCardPage })))
 const TutorialPage = lazy(() => import('./pages/TutorialPage').then((m) => ({ default: m.TutorialPage })))
@@ -102,6 +103,7 @@ const router = createBrowserRouter([
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
       { path: 'atualizacao', element: <Suspense fallback={loading}><UpdatesPage /></Suspense> },
       { path: 'git', element: <Suspense fallback={loading}><GitPage /></Suspense> },
+      { path: 'git/pr/:number', element: <Suspense fallback={loading}><PullRequestPage /></Suspense> },
       { path: 'refinamento', element: <Suspense fallback={loading}><RefinePage /></Suspense> },
       { path: 'refinamento/:cardId', element: <Suspense fallback={loading}><RefineCardPage /></Suspense> },
       { path: 'tutorial', element: <Suspense fallback={loading}><TutorialPage /></Suspense> },

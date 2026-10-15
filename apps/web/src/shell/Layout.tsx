@@ -160,7 +160,7 @@ export function Layout() {
   }, [loaded, ws, id, navigate, loadOverview])
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
-  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub.startsWith('refinamento/') ? 'Refinamento' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
+  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub.startsWith('refinamento/') ? 'Refinamento' : sub.startsWith('git/pr/') ? 'Pull request' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
   const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams'].includes(sub)
 
   return (
