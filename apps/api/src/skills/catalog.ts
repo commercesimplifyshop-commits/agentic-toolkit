@@ -40,6 +40,7 @@ export const SKILLS: SkillDef[] = [
   { id: 'mermaid-diagrams', title: 'Diagramas Mermaid', group: 'comum', techs: [], features: ['diagrams', 'docs'] },
   { id: 'technical-docs', title: 'Documentação técnica', group: 'comum', techs: [], features: ['docs'] },
   { id: 'architecture-canvas', title: 'Desenho no canvas do toolkit', group: 'comum', techs: [], features: ['diagrams'] },
+  { id: 'reference-architecture', title: 'Arquitetura de referência', group: 'comum', techs: [], features: ['diagrams', 'docs'] },
   { id: 'integration-discovery', title: 'Descoberta de integrações', group: 'comum', techs: [], features: ['diagrams', 'docs', 'ask', 'refine'] },
 
   { id: 'adobe-module-development', title: 'Módulos Magento 2', group: 'adobe-commerce', techs: ADOBE, features: [...BUILD, 'docs'] },

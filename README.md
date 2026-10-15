@@ -138,18 +138,35 @@ Em **Ferramentas & plugins → OpenSpec** você acompanha as specs e as mudança
 
 ## Arquitetura viva
 
-Em **Arquitetura → Arquitetura viva** (Adobe Commerce e Salesforce B2C) fica o desenho C4 da plataforma, montado a partir do mapeamento do projeto, sem IA:
+Em **Arquitetura → Arquitetura viva** (Adobe Commerce e Salesforce B2C) fica a **arquitetura de referência** da plataforma, montada a partir do mapeamento do projeto, sem IA. O desenho segue o formato dos diagramas de referência da Adobe e da Salesforce: camadas empilhadas, sistemas externos nas laterais, conexões em ângulo reto e legenda por cor.
 
-- **Adobe Commerce**:
-  - pessoas e sistemas que chamam as APIs;
-  - a stack da loja: storefront com o tema, admin, APIs REST e GraphQL, crons e consumers, banco, busca, RabbitMQ, Redis e Varnish, quando o projeto os usa;
-  - os módulos do projeto e as extensões, cada um ligado ao que ele usa (rotas, endpoints, resolvers, crons, filas).
-- **Salesforce B2C**:
-  - storefront, Business Manager, jobs e SCAPI/OCAPI;
-  - o **cartridge path** na ordem do site;
-  - os serviços externos (`LocalServiceRegistry`), cada um ligado ao cartucho que o chama.
+- **Personas** no topo, com o que cada uma acessa logo abaixo:
+  - cliente → CDN;
+  - equipe da loja → admin ou Business Manager;
+  - comprador B2B, lojista de marketplace e sistemas que chamam as APIs, quando o código mostra.
+- **Storefront**: o tema (ou SFRA/PWA Kit) e as partes da loja (home, catálogo e busca, produto, carrinho, checkout, conta), com o número de customizações ou rotas do projeto em cada uma.
+- **APIs e processamento**:
+  - REST, GraphQL ou SCAPI/OCAPI;
+  - webhooks de entrada;
+  - crons, consumers e jobs.
+- **A plataforma**: os domínios (catálogo, carrinho e checkout, pedidos, clientes, pagamentos, preços e promoções, estoque…).
+  - **Adobe Commerce:** com os plugins, preferences e observers que miram cada um.
+  - **Salesforce B2C:** com os atributos custom de cada um.
+  - **Serviços SaaS do fabricante:** aparecem quando instalados (Live Search, Product Recommendations, Catalog Service, Payment Services).
+- **Infraestrutura** (Adobe Commerce): banco, busca, filas, cache.
+- **Integrações externas** nas laterais:
+  - à esquerda, os sistemas do cliente (ERP, OMS, PIM, nota fiscal);
+  - à direita, SaaS e parceiros (pagamento, frete, antifraude, busca, marketing, atendimento…).
+  - Cada sistema fica na altura da camada com que conversa e se liga à borda dela.
+
+**Módulos, plugins, observers, cartuchos e serviços não viram caixas. Eles são a evidência:**
+- **Reconhecimento:** o painel reconhece o sistema pelo nome (um catálogo com os gateways, transportadoras, ERPs, antifraudes e SaaS mais comuns no Brasil, em `apps/api/src/diagrams/integration-catalog.ts`).
+- **Integrações sem nome conhecido:** as do projeto ("Integração de estoque", por exemplo) são agrupadas por assunto.
+- **Extensões que vêm com o Magento:** Klarna, Braintree, Vertex, Yotpo e Dotdigital só entram quando o código do projeto mexe nelas.
+- **Onde ver:** clicar num elemento mostra as evidências (os módulos, os cartuchos e o que cada um tem) e as customizações daquela parte da plataforma. No Salesforce B2C, o cartridge path aparece na descrição do storefront.
+
 - **Ao vivo**: o desenho segue cada nova análise ("Analisar de novo" busca as mudanças e analisa). A tela confere a cada 15 segundos e avisa quando a arquitetura mudou. As caixas podem ser arrastadas, e o arranjo é mantido quando o conteúdo muda. Clicar num elemento mostra o que foi mapeado nele.
-- **Desenhada pelo Claude**: "Desenhar com o Claude" parte do mapeamento e lê o código para completar o que ele não mostra: integrações com sistemas externos (direção, gatilho, protocolo), webhooks, jobs e integrações definidas mas sem uso. Para isso usa as skills "Arquitetura C4", "Desenho no canvas do toolkit", "Descoberta de integrações" e as de arquitetura e integrações da plataforma. A versão do Claude fica marcada como desatualizada quando o projeto é analisado de novo. Há a opção de redesenhar sozinha após cada análise, que tem custo de uso do Claude Code.
+- **Desenhada pelo Claude**: "Desenhar com o Claude" parte do mapeamento e das evidências e lê o código para confirmar e completar a arquitetura, nas mesmas camadas: integrações que o catálogo não reconheceu, direção, gatilho (checkout, job, fila, webhook) e protocolo de cada uma, e integrações definidas mas sem chamada no código. Módulos e cartuchos continuam fora do desenho, só nas descrições. Para isso usa as skills "Arquitetura de referência" (as regras do formato em camadas, seguidas em todo desenho novo e atualização), "Arquitetura C4", "Desenho no canvas do toolkit", "Descoberta de integrações" e as de arquitetura e integrações da plataforma. A versão do Claude fica marcada como desatualizada quando o projeto é analisado de novo. Há a opção de redesenhar sozinha após cada análise, que tem custo de uso do Claude Code.
 - **Abrir no editor de diagramas**: copia a versão em tela para Diagramas, para editar à vontade.
 
 ## Diagramas de arquitetura

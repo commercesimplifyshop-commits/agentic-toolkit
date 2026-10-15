@@ -6,7 +6,8 @@ import type { OverviewService } from '../src/analysis/overview.service'
 import type { DiagramGeneratorService } from '../src/diagrams/diagram-generator.service'
 import { DiagramsService } from '../src/diagrams/diagrams.service'
 import { parseGraph } from '../src/diagrams/graph'
-import { layered, LiveArchitectureService } from '../src/diagrams/live-architecture.service'
+import { LiveArchitectureService } from '../src/diagrams/live-architecture.service'
+import { BOX_H, BOX_W, referenceLayout } from '../src/diagrams/reference-layout'
 import type { JobsService } from '../src/jobs/jobs.service'
 import { ReadOnlyFs } from '../src/readonly/readonly-fs.service'
 import { SfccService } from '../src/techs/sfcc/sfcc.service'
@@ -44,86 +45,120 @@ function service(ws: Record<string, unknown>, extra: { overview?: unknown; map?:
 }
 
 describe('Arquitetura viva', () => {
-  it('draws a Salesforce B2C project from its mapping: cartridge path in order, services and who calls them', async () => {
+  it('draws the macro architecture of a Salesforce B2C store: personas, platform and the external systems, with cartridges only as evidence', async () => {
     const root = sfccProject()
     const { svc } = service({ id: 'w', name: 'loja', tech: 'salesforce-b2c', status: 'analyzed', root, analyzedAt: '2026-10-15T10:00:00Z' })
     try {
       const v = await svc.view('w')
       expect(() => parseGraph(v.graph)).not.toThrow()
       const titles = v.graph.nodes.map((n) => n.title)
-      expect(titles).toEqual(expect.arrayContaining(['1. app_loja', '2. int_frete', '3. app_storefront_base', 'erp.http.pedidos', 'frete.http.cotacao', 'Jobs', 'SCAPI / OCAPI']))
-      const id = (t: string) => v.graph.nodes.find((n) => n.title === t)!.id
-      expect(v.graph.edges.some((e) => e.source === id('1. app_loja') && e.target === id('erp.http.pedidos'))).toBe(true)
-      expect(v.graph.edges.some((e) => e.source === id('2. int_frete') && e.target === id('frete.http.cotacao'))).toBe(true)
-      // boundaries have no connection points in the editor: no arrow may point to one
-      const boundaries = new Set(v.graph.nodes.filter((n) => n.type === 'boundary').map((n) => n.id))
-      expect(v.graph.edges.every((e) => !boundaries.has(e.source) && !boundaries.has(e.target))).toBe(true)
-      expect(v.details[id('1. app_loja')].lines).toEqual(expect.arrayContaining(['serviço erp.http.pedidos', 'hook dw.ocapi.shop.basket.afterPOST']))
+      expect(titles).toEqual(expect.arrayContaining(['Cliente', 'Equipe da loja', 'Apps e sistemas', 'eCDN', 'Storefront · SFRA', 'Business Manager', 'APIs e processamento', 'SCAPI / OCAPI', 'Jobs', 'Salesforce B2C Commerce', 'Catálogo', 'Cestas e pedidos', 'Sistemas do cliente', 'Serviços SaaS e parceiros', 'Frete']))
+      // no cartridge, controller or service id is drawn as a box
+      expect(titles.some((t) => /app_loja|int_frete|app_storefront_base|\.http\./.test(t))).toBe(false)
+      const node = (t: string) => v.graph.nodes.find((n) => n.title === t)!
+      expect(node('Storefront · SFRA').description).toBe('Cartridge path: app_loja → int_frete → app_storefront_base')
+      // the parts of the store carry the project's routes
+      expect(node('Página de produto')).toMatchObject({ parent: 'b_store', tech: '1 rota do projeto' })
+      expect(node('Carrinho').tech).toBe('base SFRA')
+      // the cartridges and services are the evidence of each external system, at the sides
+      expect(v.graph.nodes.some((n) => n.type === 'external' && n.parent === 'b_cliente')).toBe(true)
+      expect(v.details[node('Frete').id].lines.join(' ')).toContain('frete.http.cotacao')
+      expect(v.graph.edges.some((e) => e.source === node('Checkout').id && e.target === node('Frete').id)).toBe(true)
+      expect(v.graph.edges.some((e) => e.source === 'b_api' && e.target === 'b_core')).toBe(true)
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
 
-  it('draws an Adobe Commerce store from its mapping: stack, APIs, crons and the modules each one reaches', async () => {
+  it('draws the macro architecture of an Adobe Commerce store, with modules, plugins and observers only as evidence', async () => {
     const items = [
       { id: '1', kind: 'rest', title: 'POST /V1/erp/pedidos', module: 'Loja_Erp', origin: 'custom', zone: 'integracoes', details: { method: 'POST' } },
       { id: '2', kind: 'cron', title: 'loja_erp_envia', module: 'Loja_Erp', origin: 'custom', zone: 'integracoes', details: {} },
-      { id: '3', kind: 'route', title: '/frete', module: 'Loja_Frete', origin: 'custom', zone: 'checkout', details: { area: 'frontend' } },
-      { id: '4', kind: 'observer', title: 'sales_order_place_after', module: 'Vendor_Pagamento', origin: 'thirdparty', zone: 'checkout', details: {} },
-      { id: '5', kind: 'plugin', title: 'Cart', module: 'Magento_Checkout', origin: 'native', zone: 'carrinho', details: {} },
+      { id: '3', kind: 'route', title: '/frenet', module: 'Frenet_Shipping', origin: 'thirdparty', zone: 'checkout', details: { area: 'frontend' } },
+      { id: '4', kind: 'observer', title: 'sales_order_place_after', module: 'Adyen_Payment', origin: 'thirdparty', zone: 'checkout', details: {} },
+      { id: '5', kind: 'route', title: '/adyen', module: 'Adyen_Payment', origin: 'thirdparty', zone: 'checkout', details: { area: 'frontend' } },
+      { id: '6', kind: 'plugin', title: 'Cart', module: 'Loja_Checkout', origin: 'custom', zone: 'checkout', details: { target: 'Magento\\Quote\\Model\\Quote' } },
+      { id: '7', kind: 'plugin', title: 'Company', module: 'Magento_Company', origin: 'native', zone: 'outros', details: {} },
+      { id: '8', kind: 'plugin', title: 'Search', module: 'Magento_LiveSearch', origin: 'native', zone: 'outros', details: {} },
     ]
     const overview = {
-      frontend: { hyva: true, breeze: false, themes: [] },
+      magento: { cloud: false },
+      frontend: { hyva: true, breeze: false, themes: [], graphql: true },
       infrastructure: { docker: { services: ['redis', 'varnish'] }, searchEngine: 'OpenSearch 2', rabbitmq: true },
       integration: { anonymousWrites: 0 },
       modules: { byOrigin: { custom: 2 } },
+      extensions: { list: [{ name: 'clearsale/module-integration', version: '3.1.0' }] },
     }
     const { svc, generator } = service({ id: 'w', name: 'loja', tech: 'adobe-commerce', status: 'analyzed', root: '/x', edition: 'Adobe Commerce', version: '2.4.8', ownVendors: ['Loja'], analyzedAt: '2026-10-15T10:00:00Z' }, { overview, map: { items } })
     const v = await svc.view('w')
     expect(() => parseGraph(v.graph)).not.toThrow()
     const byTitle = (t: string) => v.graph.nodes.find((n) => n.title === t)
-    expect(byTitle('Storefront')?.tech).toContain('Hyvä')
-    expect(byTitle('Busca')?.tech).toBe('OpenSearch 2')
+    // personas, the platform in layers and the external systems at the sides
+    expect(byTitle('Comprador B2B')?.type).toBe('person')
+    expect(byTitle('Storefront · tema Hyvä')?.id).toBe('b_store')
+    expect(byTitle('Checkout')).toMatchObject({ parent: 'b_store', tech: '4 customizações' })
+    expect(byTitle('Carrinho')?.tech).toBe('nativo')
+    expect(byTitle('API REST')).toMatchObject({ parent: 'b_api', tech: '1 endpoint do projeto' })
+    expect(byTitle('GraphQL')?.parent).toBe('b_api')
+    expect(byTitle('Crons')?.tech).toBe('1 cron do projeto')
+    expect(byTitle('Webhooks de entrada')?.parent).toBe('b_api')
+    expect(byTitle('Adobe Commerce 2.4.8')?.id).toBe('b_core')
+    expect(byTitle('Carrinho e checkout')).toMatchObject({ parent: 'b_core', tech: '1 customização' })
+    expect(byTitle('B2B')?.parent).toBe('b_core')
+    expect(byTitle('Live Search')).toMatchObject({ parent: 'b_core', tech: 'SaaS Adobe' })
+    expect(byTitle('Busca')).toMatchObject({ parent: 'b_infra', tech: 'OpenSearch 2' })
     expect(byTitle('Filas')?.tech).toBe('RabbitMQ')
-    expect(byTitle('Cache de página')).toBeTruthy()
-    expect(byTitle('Loja_Erp')?.description).toBe('1 endpoint REST · 1 cron')
-    expect(byTitle('Vendor_Pagamento')?.type).toBe('external')
-    expect(byTitle('Magento_Checkout')).toBeUndefined()
-    const e = (from: string, to: string) => v.graph.edges.some((x) => x.source === byTitle(from)!.id && x.target === byTitle(to)!.id)
-    expect(e('API REST', 'Loja_Erp')).toBe(true)
-    expect(e('Crons & consumers', 'Loja_Erp')).toBe(true)
-    expect(e('Storefront', 'Loja_Frete')).toBe(true)
+    expect(byTitle('Cache de página')?.tech).toBe('Varnish')
+    expect(byTitle('ERP')?.parent).toBe('b_cliente')
+    expect(byTitle('Adyen')?.parent).toBe('b_saas')
+    expect(byTitle('Frenet')?.tech).toBe('Frete')
+    expect(byTitle('ClearSale')?.tech).toBe('Antifraude')
+    // no module is drawn: they are the evidence
+    expect(v.graph.nodes.some((n) => /^(Loja|Adyen|Frenet|Magento)_/.test(n.title))).toBe(false)
+    expect(v.details[byTitle('Adyen')!.id].lines.join(' ')).toContain('módulo Adyen_Payment')
+    const e = (from: string, to: string) => v.graph.edges.find((x) => x.source === byTitle(from)!.id && x.target === byTitle(to)!.id)
+    expect(e('Crons', 'ERP')?.dashed).toBe(true)
+    expect(e('ERP', 'API REST')).toBeTruthy()
+    expect(e('Checkout', 'Adyen')?.label).toBe('Autoriza o pagamento')
+    expect(e('Adyen', 'Webhooks de entrada')?.label).toBe('Notifica')
+    expect(e('Checkout', 'Frenet')?.label).toBe('Cota o frete')
+    expect(e('APIs e processamento', 'Adobe Commerce 2.4.8')).toBeTruthy()
+    // the layers stack: storefront, APIs, core, infrastructure; client systems left, partners right
+    const at = (nodeId: string) => v.graph.nodes.find((n) => n.id === nodeId)!
+    expect(at('b_store').y! < at('b_api').y! && at('b_api').y! < at('b_core').y! && at('b_core').y! < at('b_infra').y!).toBe(true)
+    expect(at('b_cliente').x!).toBeLessThan(0)
+    expect(at('b_saas').x!).toBeGreaterThan(at('b_core').x!)
 
-    // the arrangement the person makes stays; Claude's request starts from the mapping
-    svc.savePositions('w', { [byTitle('Storefront')!.id]: { x: 999, y: 111 } })
-    expect((await svc.view('w')).graph.nodes.find((n) => n.title === 'Storefront')).toMatchObject({ x: 999, y: 111 })
+    // the arrangement the person makes stays; Claude gets the macro brief with the evidence
+    svc.savePositions('w', { b_store: { x: 999, y: 111 } })
+    expect((await svc.view('w')).graph.nodes.find((n) => n.id === 'b_store')).toMatchObject({ x: 999, y: 111 })
     expect(() => svc.savePositions('w', { '../x': { x: 1, y: 1 } })).toThrow()
     await svc.drawWithClaude('w')
     const request = (generator.start as jest.Mock).mock.calls[0][1].request as string
-    expect(request).toContain('Loja_Erp')
-    expect(request).toContain('integrações com sistemas externos')
+    expect(request).toContain('MACRO')
+    expect(request).toContain('Arquitetura de referência')
+    expect(request).toContain('b_store')
+    expect(request).toContain('NÃO desenhe módulos')
+    expect(request).toContain('módulo Loja_Erp')
   })
 
-  it("lays out Claude's drawing in layers, with no boundary over another", () => {
+  it("lays out Claude's drawing as the reference architecture, with no layer over another", () => {
     const graph = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'claude-c4-sfra.json'), 'utf8'))
-    const out = layered(graph)
+    const out = referenceLayout(graph)
     expect(() => parseGraph(out)).not.toThrow()
     const top = out.nodes.filter((n) => !n.parent)
     expect(top.every((n) => typeof n.x === 'number' && typeof n.y === 'number')).toBe(true)
     // people above everything else
     const peopleY = Math.max(...top.filter((n) => n.type === 'person').map((n) => n.y!))
     expect(top.filter((n) => n.type !== 'person').every((n) => n.y! > peopleY)).toBe(true)
-    // boundaries do not overlap: sized from their children like the editor does
+    // layers do not overlap: sized around their boxes like the live view does
     const box = (b: (typeof top)[number]) => {
       const kids = out.nodes.filter((n) => n.parent === b.id)
-      const w = Math.max(420, Math.max(...kids.map((k) => k.x!)) + 200 + 32)
-      const h = Math.max(260, Math.max(...kids.map((k) => k.y!)) + 120 + 32)
-      return { x1: b.x!, y1: b.y!, x2: b.x! + w, y2: b.y! + h }
+      const left = Math.min(...kids.map((k) => k.x!))
+      return { x1: b.x!, y1: b.y!, x2: b.x! + Math.max(...kids.map((k) => k.x! + BOX_W)) + left, y2: b.y! + Math.max(...kids.map((k) => k.y! + BOX_H)) + 24 }
     }
-    const boxes = top.filter((n) => n.type === 'boundary').map(box)
+    const boxes = top.filter((n) => n.type === 'boundary' && out.nodes.some((k) => k.parent === n.id)).map(box)
     for (const [i, a] of boxes.entries()) for (const b of boxes.slice(i + 1)) expect(a.x2 <= b.x1 || b.x2 <= a.x1 || a.y2 <= b.y1 || b.y2 <= a.y1).toBe(true)
-    // a drawing that already has positions is left alone
-    expect(layered(out)).toBe(out)
   })
 
   it('needs an analysed project', async () => {

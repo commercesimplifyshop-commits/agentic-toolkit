@@ -43,6 +43,8 @@ Para cada integração encontrada no código, identifique o cartucho, o serviço
 
 ## Ao desenhar
 
+Na arquitetura macro, cartuchos e controllers não aparecem como caixas: o cartridge path vai na descrição do storefront, e os cartuchos de integração (`int_*`, `link_*`) e os serviços são a evidência dos sistemas externos. Os níveis abaixo são para quando o pedido for explicitamente de componentes.
+
 - **C1:** cliente, operadores do Business Manager, a loja e os sistemas externos.
 - **C2:** storefront, Business Manager, APIs, jobs/WebDAV, eCDN e os sistemas externos com as setas de integração.
 - **C3:** os cartuchos do projeto na ordem do cartridge path, mostrando o que cada um estende da base e quais serviços e jobs ele tem.

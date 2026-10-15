@@ -48,7 +48,7 @@ describe('Skills do Claude (feature flags e sessão)', () => {
     expect(sfcc.skills[0].name).toMatch(/^agentic-toolkit:/)
 
     const adobe = svc.session('adobe-commerce', 'diagrams')!.skills.map((s) => s.id)
-    expect(adobe).toEqual(expect.arrayContaining(['c4-architecture', 'mermaid-diagrams', 'adobe-architecture']))
+    expect(adobe).toEqual(expect.arrayContaining(['c4-architecture', 'mermaid-diagrams', 'adobe-architecture', 'reference-architecture']))
     expect(adobe).not.toContain('sfcc-architecture')
   })
 

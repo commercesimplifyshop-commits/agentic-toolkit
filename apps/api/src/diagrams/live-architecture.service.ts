@@ -9,6 +9,8 @@ import { WorkspacesService } from '../workspaces/workspaces.service'
 import { DiagramGeneratorService } from './diagram-generator.service'
 import { DiagramsService } from './diagrams.service'
 import type { Graph, GraphEdge, GraphNode } from './graph'
+import { CATEGORY_TRIGGER, integrationName, isBundledExtension, recognise, type IntegrationCategory } from './integration-catalog'
+import { LAYERS, referenceLayout } from './reference-layout'
 
 /** What a node of the live architecture stands for, shown when it is clicked */
 export interface NodeDetail {
@@ -16,24 +18,21 @@ export interface NodeDetail {
   lines: string[]
 }
 
+/** Version of the layout: positions dragged on an older one are dropped */
+const LAYOUT = 2
+
 interface Stored {
   /** Positions the person dragged nodes to: kept while the content updates */
   positions: Record<string, { x: number; y: number }>
+  layout?: number
   /** The version Claude drew, and the analysis it was based on */
   claude?: { diagramId: string; basedOn: string | null; at: string }
   /** Draw again with Claude by itself after each new analysis */
   autoClaude?: boolean
 }
 
-// same grid as the diagram editor (apps/web/src/shell/diagrams/graph.ts)
-const EL_W = 200
-const CELL_W = 240
-const CELL_H = 150
-const GAP = 90
-const MAX_MODULES = 24
-const MAX_SERVICES = 16
-
 type MapItem = { id: string; kind: string; title: string; module: string; origin: string; zone: string; details: Record<string, unknown> }
+type Found = Map<string, { name: string; category: IntegrationCategory; evidence: string[]; triggers: Set<'agendado' | 'entrada' | 'webhook'> }>
 
 const KIND_LABEL: Record<string, [string, string]> = {
   rest: ['endpoint REST', 'endpoints REST'],
@@ -46,76 +45,69 @@ const KIND_LABEL: Record<string, [string, string]> = {
   route: ['rota', 'rotas'],
 }
 const plural = (n: number, kind: string) => `${n} ${(KIND_LABEL[kind] ?? [kind, kind])[n === 1 ? 0 : 1]}`
+const custom = (n: number, none = 'nativo') => (n ? `${n} ${n === 1 ? 'customização' : 'customizações'}` : none)
 const safeId = (prefix: string, s: string) => `${prefix}_${s.replace(/[^A-Za-z0-9_-]+/g, '_')}`.slice(0, 40)
 
-/** A boundary with its children laid out in a grid; returns the boundary size */
-function grid(children: GraphNode[], cols: number) {
-  children.forEach((c, i) => {
-    c.x = 32 + (i % cols) * CELL_W
-    c.y = 64 + Math.floor(i / cols) * CELL_H
-  })
-  const rows = Math.max(1, Math.ceil(children.length / cols))
-  return { w: Math.max(420, 32 + Math.min(cols, Math.max(children.length, 1)) * CELL_W), h: Math.max(260, 64 + rows * CELL_H + 24) }
-}
+/** The parts of the storefront a shopper goes through, from the map's zones */
+const TOUCHPOINTS: [zone: string, id: string, title: string][] = [
+  ['entrada', 't_home', 'Home e navegação'],
+  ['catalogo', 't_plp', 'Catálogo e busca'],
+  ['produto', 't_pdp', 'Página de produto'],
+  ['carrinho', 't_cart', 'Carrinho'],
+  ['checkout', 't_checkout', 'Checkout'],
+]
 
-/** Places rows of top-level elements (people, boundaries, external systems) one under the other */
-function stack(rows: { nodes: GraphNode[]; sizes: { w: number; h: number }[] }[]) {
-  let y = 0
-  for (const row of rows) {
-    if (!row.nodes.length) continue
-    const total = row.sizes.reduce((s, z) => s + z.w, 0) + GAP * (row.nodes.length - 1)
-    let x = Math.max(0, (1600 - total) / 2)
-    row.nodes.forEach((n, i) => {
-      n.x = Math.round(x)
-      n.y = y
-      x += row.sizes[i].w + GAP
-    })
-    y += Math.max(...row.sizes.map((s) => s.h)) + GAP
-  }
-}
+/** The domains of Adobe Commerce, by the Magento module a customisation targets or the event it observes */
+const DOMAINS: { id: string; title: string; module: RegExp; event?: RegExp; always?: boolean }[] = [
+  { id: 'm_catalog', title: 'Catálogo', module: /^(Catalog|CatalogSearch|CatalogUrlRewrite|CatalogImportExport|ConfigurableProduct|Bundle|GroupedProduct|Eav|Swatches|CatalogWidget|UrlRewrite)$/, event: /^catalog_(product|category)|^controller_action_catalog/, always: true },
+  { id: 'm_checkout', title: 'Carrinho e checkout', module: /^(Quote|Checkout|Multishipping|QuoteGraphQl|CheckoutAgreements)$/, event: /^(checkout_|sales_quote_|controller_action_checkout)/, always: true },
+  { id: 'm_sales', title: 'Pedidos', module: /^(Sales|SalesSequence|Rma|SalesGraphQl)$/, event: /^(sales_order|order_|admin_sales_order)/, always: true },
+  { id: 'm_customer', title: 'Clientes', module: /^(Customer|Newsletter|Wishlist|Review|Persistent|LoginAsCustomer)$/, event: /^(customer_|newsletter_)/, always: true },
+  { id: 'm_payment', title: 'Pagamentos', module: /^(Payment|Vault|OfflinePayments|PaymentServices\w*)$/, event: /^payment_|^sales_order_payment/, always: true },
+  { id: 'm_promo', title: 'Preços e promoções', module: /^(SalesRule|CatalogRule|GiftCard\w*|Reward|CustomerBalance|Directory)$/, event: /^(salesrule_|catalogrule_)/ },
+  { id: 'm_stock', title: 'Estoque', module: /^(CatalogInventory|Inventory\w*|SalesInventory)$/, event: /^(cataloginventory_|inventory_)/ },
+  { id: 'm_ship', title: 'Entrega', module: /^(Shipping|OfflineShipping|Ups|Usps|Fedex|Dhl)$/, event: /^(sales_order_shipment|shipment_)/ },
+  { id: 'm_tax', title: 'Impostos', module: /^(Tax|Weee)$/ },
+  { id: 'm_cms', title: 'Conteúdo', module: /^(Cms|PageBuilder|Widget|Banner|Theme)$/, event: /^cms_/ },
+  { id: 'm_b2b', title: 'B2B', module: /^(Company|NegotiableQuote|SharedCatalog|RequisitionList|PurchaseOrder|QuickOrder|CompanyCredit)$/, event: /^(company_|negotiable_quote)/ },
+]
 
-/**
- * Lays out a C4 graph that came without positions (Claude's) in layers: people on top, then the
- * boundaries (several per row while they fit), then the systems that stand alone.
- */
-export function layered(graph: Graph): Graph {
-  if (graph.nodes.some((n) => n.x !== undefined && n.y !== undefined)) return graph
-  const nodes = graph.nodes.map((n) => ({ ...n }))
-  const isBoundary = new Set(nodes.filter((n) => n.type === 'boundary').map((n) => n.id))
-  const top = nodes.filter((n) => !n.parent || !isBoundary.has(n.parent))
-  const sizes = new Map<string, { w: number; h: number }>()
-  for (const b of top.filter((n) => n.type === 'boundary')) {
-    const kids = nodes.filter((n) => n.parent === b.id)
-    sizes.set(b.id, grid(kids, kids.length <= 4 ? Math.max(kids.length, 1) : kids.length <= 9 ? 3 : 4))
-  }
-  const sizeOf = (n: GraphNode) => sizes.get(n.id) ?? { w: EL_W, h: 120 }
-  const rows: { nodes: GraphNode[]; sizes: { w: number; h: number }[] }[] = []
-  const people = top.filter((n) => n.type === 'person')
-  rows.push({ nodes: people, sizes: people.map(sizeOf) })
-  let row: GraphNode[] = []
-  let width = 0
-  for (const b of top.filter((n) => n.type === 'boundary')) {
-    const w = sizeOf(b).w
-    if (row.length && width + GAP + w > 1600) {
-      rows.push({ nodes: row, sizes: row.map(sizeOf) })
-      row = []
-      width = 0
-    }
-    row.push(b)
-    width += (row.length > 1 ? GAP : 0) + w
-  }
-  if (row.length) rows.push({ nodes: row, sizes: row.map(sizeOf) })
-  const loose = top.filter((n) => n.type !== 'person' && n.type !== 'boundary')
-  for (let i = 0; i < loose.length; i += 6) rows.push({ nodes: loose.slice(i, i + 6), sizes: loose.slice(i, i + 6).map(sizeOf) })
-  stack(rows)
-  return { ...graph, nodes }
-}
+/** Adobe services that run outside the store (SaaS), by module or composer package */
+const ADOBE_SAAS: [RegExp, string, string][] = [
+  [/LiveSearch|live-search/i, 'a_livesearch', 'Live Search'],
+  [/ProductRecommendation|product-recommendations/i, 'a_recs', 'Product Recommendations'],
+  [/CatalogService|catalog-service/i, 'a_catalogsvc', 'Catalog Service'],
+  [/PaymentServices|payment-services/i, 'a_payments', 'Payment Services'],
+]
+
+/** SFRA controllers, by the part of the storefront they serve */
+const SFRA_TOUCHPOINTS: [RegExp, string, string][] = [
+  [/^(Home|Default|Page|Stores?|Error|Link)$/i, 't_home', 'Home e conteúdo'],
+  [/^(Search|Tile)$/i, 't_plp', 'Busca e catálogo'],
+  [/^Product$/i, 't_pdp', 'Página de produto'],
+  [/^Cart$/i, 't_cart', 'Carrinho'],
+  [/^Checkout\w*$/i, 't_checkout', 'Checkout'],
+  [/^(Account|Login|Order|Address|PaymentInstruments|Wishlist|CSRF)$/i, 't_account', 'Conta do cliente'],
+]
+
+/** The domains of B2C Commerce, by the system object types of the custom attributes */
+const SFCC_DOMAINS: [RegExp, string, string][] = [
+  [/^(Product|Catalog|Category|ProductList)/, 'm_catalog', 'Catálogo'],
+  [/^(PriceBook|Promotion|Campaign|Coupon|SourceCode)/, 'm_promo', 'Preços e promoções'],
+  [/^(ProductInventory|Inventory)/, 'm_stock', 'Estoque'],
+  [/^(Basket|Order|Shipment|ProductLineItem|ShippingMethod|LineItem|GiftCertificate)/, 'm_sales', 'Cestas e pedidos'],
+  [/^(Profile|Customer|CustomerAddress|CustomerGroup)/, 'm_customer', 'Clientes'],
+  [/^(Payment|OrderPaymentInstrument|CustomerPaymentInstrument)/, 'm_payment', 'Pagamentos'],
+  [/^(Content|Folder|Library)/, 'm_cms', 'Conteúdo'],
+  [/^(SitePreferences|OrganizationPreferences)/, 'm_prefs', 'Configuração do site'],
+]
 
 /**
- * The architecture of the platform drawn from the project's mapping, with no AI: people, the
- * platform's containers, the project's modules (Adobe Commerce) or cartridge path (Salesforce B2C)
- * and the external services found in the code. It follows each new analysis by itself; the person
- * can arrange it, and Claude can draw a richer version on top of it.
+ * The architecture of the platform drawn from the project's mapping, with no AI, in the shape of a
+ * reference architecture: personas; the storefront and the parts of it a shopper goes through; the
+ * APIs and processing; the commerce core with its domains; the infrastructure; and the external
+ * systems at the sides. Modules, cartridges and services are the evidence, never boxes. It follows
+ * each new analysis by itself; the person can arrange it, and Claude can draw a richer version.
  */
 @Injectable()
 export class LiveArchitectureService {
@@ -139,14 +131,55 @@ export class LiveArchitectureService {
   private read(id: string): Stored {
     try {
       const s = JSON.parse(fs.readFileSync(this.file(id), 'utf8')) as Stored
-      return { positions: s.positions ?? {}, claude: s.claude, autoClaude: s.autoClaude }
+      return { positions: s.layout === LAYOUT ? (s.positions ?? {}) : {}, layout: LAYOUT, claude: s.claude, autoClaude: s.autoClaude }
     } catch {
-      return { positions: {} }
+      return { positions: {}, layout: LAYOUT }
     }
   }
   private write(id: string, s: Stored) {
-    fs.writeFileSync(`${this.file(id)}.tmp`, JSON.stringify(s, null, 2))
+    fs.writeFileSync(`${this.file(id)}.tmp`, JSON.stringify({ ...s, layout: LAYOUT }, null, 2))
     fs.renameSync(`${this.file(id)}.tmp`, this.file(id))
+  }
+
+  // ---- integrations: the external systems, with the code as evidence ---------------------------------
+
+  /**
+   * Adds the external systems at the sides, as the client's systems (ERP, OMS, PIM, fiscal) and SaaS
+   * partners (payment, shipping, search…), each linked to the part of the platform that reaches it:
+   * the checkout, the catalogue, the crons and jobs, the API or a webhook.
+   */
+  private addIntegrations(
+    found: Found,
+    ctx: { nodes: GraphNode[]; details: Record<string, NodeDetail>; edge: (s: string, t: string, label?: string, tech?: string, dashed?: boolean) => void; to: { checkout: string; browse: string; search: string; jobs?: string; api?: string; webhook?: string; admin: string } },
+  ) {
+    const own = new Set<IntegrationCategory>(['ERP', 'OMS', 'PIM', 'Nota fiscal', 'Outros sistemas'])
+    const groups = [
+      { id: LAYERS.client, title: 'Sistemas do cliente', members: [] as GraphNode[] },
+      { id: LAYERS.saas, title: 'Serviços SaaS e parceiros', members: [] as GraphNode[] },
+    ]
+    for (const sys of found.values()) {
+      const nodeId = safeId('x', sys.name)
+      const group = own.has(sys.category) ? groups[0] : groups[1]
+      group.members.push({ id: nodeId, type: 'external', title: sys.name, tech: sys.category, description: `Evidência: ${sys.evidence.slice(0, 2).join('; ')}${sys.evidence.length > 2 ? '…' : ''}`.slice(0, 390), parent: group.id })
+      ctx.details[nodeId] = { title: `${sys.name} · ${sys.category}`, lines: ['Evidências no código (contexto, não aparecem no desenho):', ...sys.evidence] }
+    }
+    for (const g of groups) if (g.members.length) ctx.nodes.push({ id: g.id, type: 'boundary', title: g.title }, ...g.members.sort((a, b) => (a.tech ?? '').localeCompare(b.tech ?? '') || a.title.localeCompare(b.title)))
+    const { to } = ctx
+    for (const sys of found.values()) {
+      const x = safeId('x', sys.name)
+      let linked = false
+      if (sys.triggers.has('agendado') && to.jobs) (ctx.edge(to.jobs, x, 'Sincroniza', 'cron / fila', true), (linked = true))
+      if (sys.triggers.has('entrada') && to.api) (ctx.edge(x, to.api, 'Chama a API da loja', 'REST'), (linked = true))
+      if (sys.triggers.has('webhook')) (ctx.edge(x, to.webhook ?? to.browse, 'Notifica', 'webhook', true), (linked = true))
+      const usual = CATEGORY_TRIGGER[sys.category]
+      if (!linked || usual === 'checkout') {
+        if (usual === 'agendado' && to.jobs) ctx.edge(to.jobs, x, 'Sincroniza', 'job', true)
+        else if (usual === 'checkout') ctx.edge(to.checkout, x, sys.category === 'Frete' ? 'Cota o frete' : sys.category === 'Antifraude' ? 'Analisa o pedido' : sys.category === 'Impostos' ? 'Calcula impostos' : 'Autoriza o pagamento', 'HTTPS')
+        else if (usual === 'agendado') ctx.edge(to.admin, x, 'Integra', 'HTTPS')
+        else if (sys.category === 'Busca') ctx.edge(to.search, x, 'Busca e navegação', 'HTTPS')
+        else ctx.edge(to.browse, x, 'Na navegação', 'HTTPS')
+      }
+    }
   }
 
   // ---- Adobe Commerce ----------------------------------------------------------------------------
@@ -156,198 +189,236 @@ export class LiveArchitectureService {
     const o = await this.overview.compute(id)
     const map = (this.maps.readMap(id) as { items?: MapItem[] } | null)?.items ?? []
     const items = map.filter((i) => i.origin !== 'native')
+    const modulesInUse = new Set(map.map((i) => i.module))
+    const extensions = (o.extensions.list as { name: string; version?: string }[]) ?? []
     const count = (kind: string, pred: (i: MapItem) => boolean = () => true) => items.filter((i) => i.kind === kind && pred(i)).length
+    const lines = (pred: (i: MapItem) => boolean, max = 40) => items.filter(pred).slice(0, max).map((i) => `${(KIND_LABEL[i.kind] ?? [i.kind])[0]}: ${i.title} (${i.module})`)
     const details: Record<string, NodeDetail> = {}
     const nodes: GraphNode[] = []
     const edges: GraphEdge[] = []
+    const has = (nodeId: string) => nodes.some((n) => n.id === nodeId)
     const edge = (source: string, target: string, label?: string, tech?: string, dashed?: boolean) => {
-      if (nodes.some((n) => n.id === source) && nodes.some((n) => n.id === target) && !edges.some((e) => e.source === source && e.target === target)) {
-        edges.push({ id: `e${edges.length + 1}`, source, target, label, tech, dashed })
-      }
+      if (has(source) && has(target) && !edges.some((e) => e.source === source && e.target === target)) edges.push({ id: `e${edges.length + 1}`, source, target, label, tech, dashed })
     }
 
-    // people and callers
-    const people: GraphNode[] = [
-      { id: 'p_cliente', type: 'person', title: 'Cliente', description: 'Navega e compra na loja' },
-      { id: 'p_equipe', type: 'person', title: 'Equipe da loja', description: 'Opera pedidos, catálogo e configuração no admin' },
-    ]
-    const apis = count('rest') + count('graphql')
-    if (apis) people.push({ id: 'x_api', type: 'external', title: 'Sistemas integrados', description: 'Chamam as APIs customizadas da loja' })
-
-    // the platform
-    const theme = o.frontend.hyva ? 'Hyvä' : o.frontend.breeze ? 'Breeze' : (o.frontend.themes as { name?: string }[] | undefined)?.find((t) => t.name && !/^Magento\//.test(t.name))?.name ?? 'Luma'
-    const platform: GraphNode[] = [
-      { id: 'c_store', type: 'container', title: 'Storefront', tech: `PHP · tema ${theme}`, description: `${plural(count('route', (i) => i.details.area === 'frontend'), 'route')} do projeto`, parent: 'b_loja' },
-      { id: 'c_admin', type: 'container', title: 'Admin', tech: 'PHP', description: `${plural(count('route', (i) => i.details.area === 'adminhtml'), 'route')} do projeto`, parent: 'b_loja' },
-    ]
-    if (count('rest')) platform.push({ id: 'c_rest', type: 'container', title: 'API REST', tech: 'webapi.xml', description: `${plural(count('rest'), 'rest')}${o.integration.anonymousWrites ? `, ${o.integration.anonymousWrites} de escrita sem autenticação` : ''}`, parent: 'b_loja' })
-    if (count('graphql')) platform.push({ id: 'c_graphql', type: 'container', title: 'API GraphQL', tech: 'schema.graphqls', description: plural(count('graphql'), 'graphql'), parent: 'b_loja' })
-    if (count('cron') || count('queue')) platform.push({ id: 'c_jobs', type: 'container', title: 'Crons & consumers', tech: 'bin/magento cron:run', description: [count('cron') && plural(count('cron'), 'cron'), count('queue') && plural(count('queue'), 'queue')].filter(Boolean).join(' · '), parent: 'b_loja' })
-    platform.push({ id: 'd_db', type: 'db', title: 'Banco de dados', tech: 'MySQL / MariaDB', description: 'Catálogo, pedidos, clientes e configuração', parent: 'b_loja' })
-    const services = ((o.infrastructure.docker as { services?: string[] } | null)?.services ?? []).map((s) => s.toLowerCase())
-    if (o.infrastructure.searchEngine) platform.push({ id: 'd_search', type: 'db', title: 'Busca', tech: String(o.infrastructure.searchEngine), description: 'Catálogo e navegação por filtros', parent: 'b_loja' })
-    if (o.infrastructure.rabbitmq) platform.push({ id: 'q_mq', type: 'queue', title: 'Filas', tech: 'RabbitMQ', description: 'Mensagens processadas pelos consumers', parent: 'b_loja' })
-    if (services.some((s) => s.includes('redis') || s.includes('valkey'))) platform.push({ id: 'd_cache', type: 'db', title: 'Cache e sessão', tech: 'Redis', parent: 'b_loja' })
-    if (services.some((s) => s.includes('varnish'))) platform.push({ id: 'c_varnish', type: 'container', title: 'Cache de página', tech: 'Varnish', parent: 'b_loja' })
-    const loja: GraphNode = { id: 'b_loja', type: 'boundary', title: `${ws.name} · ${ws.edition ?? 'Adobe Commerce'} ${ws.version ?? ''}`.trim() }
-    const lojaSize = grid(platform, 4)
-
-    // the project's modules (own, then third-party), by what they plug into
+    // external systems: recognised from the project's modules and extensions; the modules are the evidence
+    const found: Found = new Map()
     const byModule = new Map<string, MapItem[]>()
     for (const i of items) byModule.set(i.module, [...(byModule.get(i.module) ?? []), i])
-    const ranked = [...byModule].sort((a, b) => Number(b[1][0].origin === 'custom') - Number(a[1][0].origin === 'custom') || b[1].length - a[1].length)
-    const shown = ranked.slice(0, MAX_MODULES)
-    const modules: GraphNode[] = shown.map(([name, list]) => {
+    const note = (raw: string, evidence: string, list: MapItem[] = [], fallback?: string) => {
+      const m = recognise(raw) ?? (fallback ? { name: fallback, category: 'Outros sistemas' as IntegrationCategory, named: false } : null)
+      if (!m) return
+      const sys = found.get(m.name) ?? { name: m.name, category: m.category, evidence: [], triggers: new Set() }
+      if (!sys.evidence.includes(evidence)) sys.evidence.push(evidence)
+      if (list.some((i) => i.kind === 'cron' || i.kind === 'queue')) sys.triggers.add('agendado')
+      if (list.some((i) => i.kind === 'rest' || i.kind === 'graphql')) sys.triggers.add('entrada')
+      if (list.some((i) => i.kind === 'route' && i.details.area === 'frontend') && (m.category === 'Pagamento' || m.category === 'Antifraude')) sys.triggers.add('webhook')
+      found.set(m.name, sys)
+    }
+    for (const [module, list] of byModule) {
       const kinds = new Map<string, number>()
       for (const i of list) kinds.set(i.kind, (kinds.get(i.kind) ?? 0) + 1)
-      const nodeId = safeId('m', name)
-      details[nodeId] = { title: name, lines: list.slice(0, 40).map((i) => `${(KIND_LABEL[i.kind] ?? [i.kind])[0]}: ${i.title}`) }
-      return {
-        id: nodeId,
-        type: list[0].origin === 'custom' ? 'container' : 'external',
-        title: name,
-        tech: list[0].origin === 'custom' ? 'módulo do projeto' : 'extensão de terceiro',
-        description: [...kinds].sort((a, b) => b[1] - a[1]).map(([k, n]) => plural(n, k)).join(' · '),
-        parent: 'b_mod',
-      }
-    })
-    if (ranked.length > shown.length) modules.push({ id: 'm_more', type: 'container', title: `+ ${ranked.length - shown.length} módulos`, description: 'com menos pontos de integração', parent: 'b_mod' })
-    const modBoundary: GraphNode = { id: 'b_mod', type: 'boundary', title: `Módulos e extensões (${o.modules.byOrigin.custom ?? 0} do projeto)` }
-    const modSize = grid(modules, 5)
+      // a project module whose name says it integrates, with no known system: still an external system
+      const integrates = list[0]?.origin === 'custom' && /integra|connector|conector|sync|export|import|webhook/i.test(module)
+      note(module, `módulo ${module} (${[...kinds].map(([k, n]) => plural(n, k)).join(', ')})`, list, integrates ? integrationName(module) : undefined)
+    }
+    for (const e of extensions) {
+      // extensions bundled with Magento are installed in most stores: only the ones the project's code touches count
+      const m = recognise(e.name)
+      if (isBundledExtension(e.name) && !(m && found.has(m.name))) continue
+      note(e.name, `extensão ${e.name}${e.version ? ` ${e.version}` : ''}`)
+    }
+    const triggered = (t: 'agendado' | 'entrada' | 'webhook') => [...found.values()].some((s) => s.triggers.has(t))
 
-    nodes.push(...people, loja, ...platform, ...(modules.length ? [modBoundary, ...modules] : []))
-    stack([
-      { nodes: people, sizes: people.map(() => ({ w: EL_W, h: 120 })) },
-      { nodes: [loja], sizes: [lojaSize] },
-      { nodes: modules.length ? [modBoundary] : [], sizes: [modSize] },
-    ])
+    // personas
+    const b2b = [...modulesInUse].some((m) => /^Magento_(Company|NegotiableQuote|SharedCatalog|RequisitionList|PurchaseOrder)/.test(m))
+    nodes.push({ id: 'p_cliente', type: 'person', title: 'Cliente', description: 'Navega, compra e acompanha pedidos' })
+    if (b2b) nodes.push({ id: 'p_b2b', type: 'person', title: 'Comprador B2B', description: 'Conta empresa, cotações e catálogo compartilhado' })
+    const apis = count('rest') + count('graphql')
+    if (apis && !triggered('entrada')) nodes.push({ id: 'x_api', type: 'external', title: 'Sistemas que chamam as APIs', description: 'Apps, integrações e parceiros' })
+    if ([...modulesInUse].some((m) => /marketplace|seller|vendor_?portal/i.test(m))) nodes.push({ id: 'p_seller', type: 'person', title: 'Lojista do marketplace', description: 'Gerencia produtos e pedidos no painel de seller' })
+    nodes.push({ id: 'p_equipe', type: 'person', title: 'Equipe da loja', description: 'Pedidos, catálogo, promoções e configuração no admin' })
 
-    edge('p_cliente', 'c_store', 'Navega e compra', 'HTTPS')
-    edge('p_equipe', 'c_admin', 'Opera', 'HTTPS')
-    edge('x_api', 'c_rest', 'Integra', 'REST')
-    edge('x_api', 'c_graphql', 'Consulta', 'GraphQL')
-    for (const c of ['c_store', 'c_admin', 'c_rest', 'c_graphql', 'c_jobs']) edge(c, 'd_db', 'Lê e grava', 'SQL')
-    edge('c_store', 'd_search', 'Busca', 'HTTP')
-    edge('c_jobs', 'q_mq', 'Consome', 'AMQP')
-    for (const [name, list] of shown) {
-      const m = safeId('m', name)
-      const has = (k: string, pred: (i: MapItem) => boolean = () => true) => list.some((i) => i.kind === k && pred(i))
-      if (has('route', (i) => i.details.area === 'frontend')) edge('c_store', m, 'rotas')
-      if (has('route', (i) => i.details.area === 'adminhtml')) edge('c_admin', m, 'telas')
-      if (has('rest')) edge('c_rest', m, 'endpoints')
-      if (has('graphql')) edge('c_graphql', m, 'resolvers')
-      if (has('cron') || has('queue')) edge('c_jobs', m, has('queue') ? 'consumers' : 'crons', undefined, true)
+    // entry: CDN and full-page cache
+    const services = ((o.infrastructure.docker as { services?: string[] } | null)?.services ?? []).map((s) => s.toLowerCase())
+    if (o.magento.cloud) nodes.push({ id: 'c_cdn', type: 'container', title: 'CDN e cache de página', tech: 'Fastly' })
+    else if (services.some((s) => s.includes('varnish'))) nodes.push({ id: 'c_cdn', type: 'container', title: 'Cache de página', tech: 'Varnish' })
+
+    // storefront: the theme and the parts of the store, with what the project customised in each
+    const theme = o.frontend.hyva ? 'Hyvä' : o.frontend.breeze ? 'Breeze' : (o.frontend.themes as { name?: string }[] | undefined)?.find((t) => t.name && !/^Magento\//.test(t.name))?.name ?? 'Luma'
+    nodes.push({ id: LAYERS.store, type: 'boundary', title: `Storefront · tema ${theme}` })
+    for (const [zone, nodeId, title] of TOUCHPOINTS) {
+      nodes.push({ id: nodeId, type: 'container', title, tech: custom(items.filter((i) => i.zone === zone).length), parent: LAYERS.store })
+      details[nodeId] = { title, lines: ['Customizações do projeto (contexto):', ...lines((i) => i.zone === zone)] }
+    }
+    if (b2b) nodes.push({ id: 't_b2b', type: 'container', title: 'Conta empresa e cotações', tech: 'B2B', parent: LAYERS.store })
+    nodes.push({ id: 'c_admin', type: 'container', title: 'Admin', tech: custom(items.filter((i) => i.zone === 'admin').length) })
+    details.c_admin = { title: 'Admin', lines: ['Customizações do projeto (contexto):', ...lines((i) => i.zone === 'admin')] }
+
+    // APIs and processing
+    nodes.push({ id: LAYERS.api, type: 'boundary', title: 'APIs e processamento' })
+    nodes.push({ id: 'c_rest', type: 'container', title: 'API REST', tech: count('rest') ? plural(count('rest'), 'rest').replace(' REST', '') + ' do projeto' : 'nativa', parent: LAYERS.api })
+    details.c_rest = { title: 'API REST', lines: lines((i) => i.kind === 'rest', 60) }
+    if (o.frontend.graphql || count('graphql')) {
+      nodes.push({ id: 'c_graphql', type: 'container', title: 'GraphQL', tech: count('graphql') ? plural(count('graphql'), 'graphql').replace(' GraphQL', '') + ' do projeto' : 'nativa', parent: LAYERS.api })
+      details.c_graphql = { title: 'GraphQL', lines: lines((i) => i.kind === 'graphql', 60) }
+    }
+    if (triggered('webhook')) nodes.push({ id: 'c_webhook', type: 'container', title: 'Webhooks de entrada', tech: 'rotas de retorno', parent: LAYERS.api })
+    if (count('cron')) {
+      nodes.push({ id: 'c_cron', type: 'container', title: 'Crons', tech: `${plural(count('cron'), 'cron')} do projeto`, parent: LAYERS.api })
+      details.c_cron = { title: 'Crons', lines: lines((i) => i.kind === 'cron', 60) }
+    }
+    if (count('queue') || o.infrastructure.rabbitmq) {
+      nodes.push({ id: 'c_consumers', type: 'container', title: 'Consumers de fila', tech: count('queue') ? `${plural(count('queue'), 'queue')} do projeto` : 'nativos', parent: LAYERS.api })
+      details.c_consumers = { title: 'Consumers de fila', lines: lines((i) => i.kind === 'queue', 60) }
+    }
+    const io = [...modulesInUse, ...extensions.map((e) => e.name)].some((m) => /AdobeCommerceEvents|commerce-eventing|AdobeIoEvents|adobe-io-events/i.test(m))
+    if (io) nodes.push({ id: 'c_events', type: 'container', title: 'Adobe I/O Events', tech: 'SaaS Adobe', parent: LAYERS.api })
+
+    // the commerce core: its domains, with the customisations that target each one
+    nodes.push({ id: LAYERS.core, type: 'boundary', title: `${ws.edition ?? 'Adobe Commerce'} ${ws.version ?? ''}`.trim() })
+    const domainOf = (i: MapItem) => {
+      const target = String(i.details.target ?? i.details.for ?? '')
+      const mod = /^\\?Magento\\(\w+)\\/.exec(target)?.[1]
+      const event = i.kind === 'observer' ? String(i.details.event ?? i.title) : ''
+      return DOMAINS.find((d) => (mod && d.module.test(mod)) || (event && d.event?.test(event)))?.id
+    }
+    for (const d of DOMAINS) {
+      const mine = items.filter((i) => domainOf(i) === d.id)
+      const inUse = [...modulesInUse].some((m) => m.startsWith('Magento_') && d.module.test(m.slice(8)))
+      if (!d.always && !mine.length && !(inUse && (d.id === 'm_b2b' || d.id === 'm_stock'))) continue
+      nodes.push({ id: d.id, type: 'container', title: d.title, tech: custom(mine.length), parent: LAYERS.core })
+      details[d.id] = { title: d.title, lines: ['Plugins, preferences e observers do projeto neste domínio (contexto):', ...mine.slice(0, 40).map((i) => `${(KIND_LABEL[i.kind] ?? [i.kind])[0]}: ${i.title} (${i.module})`)] }
+    }
+    for (const [re, nodeId, title] of ADOBE_SAAS) {
+      if ([...modulesInUse, ...extensions.map((e) => e.name)].some((m) => re.test(m))) nodes.push({ id: nodeId, type: 'container', title, tech: 'SaaS Adobe', parent: LAYERS.core })
     }
 
-    details.c_store = { title: 'Storefront', lines: items.filter((i) => i.kind === 'route' && i.details.area === 'frontend').slice(0, 40).map((i) => `rota ${i.title} (${i.module})`) }
-    details.c_admin = { title: 'Admin', lines: items.filter((i) => i.kind === 'route' && i.details.area === 'adminhtml').slice(0, 40).map((i) => `rota ${i.title} (${i.module})`) }
-    details.c_rest = { title: 'API REST', lines: items.filter((i) => i.kind === 'rest').slice(0, 60).map((i) => `${i.title} (${i.module})`) }
-    details.c_graphql = { title: 'API GraphQL', lines: items.filter((i) => i.kind === 'graphql').slice(0, 60).map((i) => `${i.title} (${i.module})`) }
-    details.c_jobs = { title: 'Crons & consumers', lines: items.filter((i) => i.kind === 'cron' || i.kind === 'queue').slice(0, 60).map((i) => `${(KIND_LABEL[i.kind] ?? [i.kind])[0]}: ${i.title} (${i.module})`) }
+    // infrastructure
+    nodes.push({ id: LAYERS.infra, type: 'boundary', title: o.magento.cloud ? 'Infraestrutura · Adobe Commerce Cloud' : 'Infraestrutura' })
+    nodes.push({ id: 'd_db', type: 'db', title: 'Banco de dados', tech: 'MySQL / MariaDB', parent: LAYERS.infra })
+    if (o.infrastructure.searchEngine) nodes.push({ id: 'd_search', type: 'db', title: 'Busca', tech: String(o.infrastructure.searchEngine).replace(/^Magento_(Elasticsearch|OpenSearch)(\d*)$/i, (_m, e: string, v: string) => `${/open/i.test(e) ? 'OpenSearch' : 'Elasticsearch'}${v ? ` ${v}` : ''}`), parent: LAYERS.infra })
+    if (o.infrastructure.rabbitmq) nodes.push({ id: 'q_mq', type: 'queue', title: 'Filas', tech: 'RabbitMQ', parent: LAYERS.infra })
+    if (services.some((s) => s.includes('redis') || s.includes('valkey'))) nodes.push({ id: 'd_cache', type: 'db', title: 'Cache e sessão', tech: 'Redis', parent: LAYERS.infra })
+    if (o.magento.cloud) nodes.push({ id: 'd_media', type: 'db', title: 'Mídia', tech: 'Armazenamento de arquivos', parent: LAYERS.infra })
+
+    this.addIntegrations(found, { nodes, details, edge, to: { checkout: 't_checkout', browse: LAYERS.store, search: 't_plp', jobs: has('c_cron') ? 'c_cron' : has('c_consumers') ? 'c_consumers' : undefined, api: 'c_rest', webhook: has('c_webhook') ? 'c_webhook' : undefined, admin: 'c_admin' } })
+
+    edge('p_cliente', has('c_cdn') ? 'c_cdn' : LAYERS.store, 'Navega e compra', 'HTTPS')
+    edge('c_cdn', LAYERS.store, 'Encaminha o que não está em cache')
+    edge('p_b2b', LAYERS.store, 'Compra como empresa', 'HTTPS')
+    edge('x_api', LAYERS.api, 'Integra', 'REST / GraphQL')
+    edge('p_seller', 'c_admin', 'Gerencia produtos e pedidos', 'HTTPS')
+    edge('p_equipe', 'c_admin', 'Opera', 'HTTPS')
+    edge(LAYERS.store, LAYERS.core, 'Renderiza com os domínios', 'PHP')
+    edge(LAYERS.api, LAYERS.core, 'Expõe e processa')
+    edge(LAYERS.core, LAYERS.infra, 'Lê e grava', ['SQL', has('d_search') && 'HTTP', has('q_mq') && 'AMQP'].filter(Boolean).join(' · '))
+
+    details[LAYERS.store] = { title: `Storefront · tema ${theme}`, lines: [`Tema: ${theme}`, ...((o.frontend.themes as { name?: string }[] | undefined) ?? []).map((t) => `tema instalado: ${t.name}`).slice(0, 10)] }
     return { nodes, edges, details }
   }
 
   // ---- Salesforce B2C ------------------------------------------------------------------------------
 
   private sfccGraph(id: string) {
-    const ws = this.workspaces.get(id)
     const o = this.sfcc.overview(id)
     const details: Record<string, NodeDetail> = {}
     const nodes: GraphNode[] = []
     const edges: GraphEdge[] = []
+    const has = (nodeId: string) => nodes.some((n) => n.id === nodeId)
     const edge = (source: string, target: string, label?: string, tech?: string, dashed?: boolean) => {
-      if (nodes.some((n) => n.id === source) && nodes.some((n) => n.id === target) && !edges.some((e) => e.source === source && e.target === target)) {
-        edges.push({ id: `e${edges.length + 1}`, source, target, label, tech, dashed })
-      }
+      if (has(source) && has(target) && !edges.some((e) => e.source === source && e.target === target)) edges.push({ id: `e${edges.length + 1}`, source, target, label, tech, dashed })
+    }
+    const ocapiHooks = o.hooks.filter((h) => /^dw\.ocapi\./.test(h.name))
+    const pathOrder = o.cartridgePaths[0]?.path ?? o.cartridges.map((c) => c.name)
+    const headless = o.storefront.type === 'PWA Kit'
+
+    // external systems: from the services the code creates and the integration cartridges
+    const found: Found = new Map()
+    const note = (raw: string, evidence: string, opts: { scheduled?: boolean; webhook?: boolean; fallback?: string } = {}) => {
+      const m = recognise(raw) ?? (opts.fallback ? { name: opts.fallback, category: 'Outros sistemas' as IntegrationCategory, named: false } : null)
+      if (!m) return
+      const sys = found.get(m.name) ?? { name: m.name, category: m.category, evidence: [], triggers: new Set() }
+      if (!sys.evidence.includes(evidence)) sys.evidence.push(evidence)
+      if (opts.scheduled) sys.triggers.add('agendado')
+      if (opts.webhook) sys.triggers.add('webhook')
+      found.set(m.name, sys)
+    }
+    const webhookCartridges = new Set(o.controllers.filter((c) => /notif|webhook|callback|retorno|postback/i.test(c.file)).map((c) => c.cartridge))
+    for (const s of o.services) {
+      const users = o.serviceUses.filter((u) => u.service === s).map((u) => u.cartridge)
+      const recognised = recognise(s) ?? users.map((c) => recognise(c)).find(Boolean)
+      note(recognised ? (recognise(s) ? s : users.find((c) => recognise(c))!) : s, `serviço ${s}${users.length ? ` (cartucho ${users.join(', ')})` : ''}`, {
+        scheduled: /job|sync|export|import|feed/i.test(s),
+        webhook: users.some((c) => webhookCartridges.has(c)),
+        fallback: `Sistema externo (${s.split('.')[0]})`,
+      })
+    }
+    for (const c of o.cartridges.map((x) => x.name).filter((n) => /^(int|link)_/.test(n))) note(c, `cartucho ${c}`, { webhook: webhookCartridges.has(c) })
+    const triggered = (t: 'agendado' | 'entrada' | 'webhook') => [...found.values()].some((s) => s.triggers.has(t))
+
+    // personas
+    nodes.push({ id: 'p_cliente', type: 'person', title: 'Cliente', description: 'Navega, compra e acompanha pedidos' })
+    if (ocapiHooks.length) nodes.push({ id: 'x_api', type: 'external', title: 'Apps e sistemas', description: 'Consomem as APIs da plataforma (SCAPI / OCAPI)' })
+    nodes.push({ id: 'p_equipe', type: 'person', title: 'Equipe da loja', description: 'Catálogo, promoções, conteúdo e configuração no Business Manager' })
+    nodes.push({ id: 'c_cdn', type: 'container', title: 'eCDN', tech: 'CDN e WAF da plataforma' })
+
+    // storefront: the parts of the store, with the project's routes in each
+    const own = o.controllers.filter((c) => c.cartridge !== 'app_storefront_base')
+    nodes.push({ id: LAYERS.store, type: 'boundary', title: `Storefront · ${headless ? 'PWA Kit' : 'SFRA'}`, description: `Cartridge path: ${pathOrder.join(' → ') || '—'}`.slice(0, 390) })
+    for (const [re, nodeId, title] of SFRA_TOUCHPOINTS) {
+      const routes = own.filter((c) => re.test(path.basename(c.file).replace(/\.(js|ds)$/, ''))).flatMap((c) => c.routes.map((r) => `${c.cartridge}: ${r.method} ${path.basename(c.file).replace(/\.(js|ds)$/, '')}-${r.name}`))
+      nodes.push({ id: nodeId, type: 'container', title, tech: routes.length ? `${routes.length} ${routes.length === 1 ? 'rota' : 'rotas'} do projeto` : headless ? 'PWA Kit' : 'base SFRA', parent: LAYERS.store })
+      details[nodeId] = { title, lines: ['Rotas do projeto (contexto):', ...routes.slice(0, 40)] }
+    }
+    nodes.push({ id: 'c_bm', type: 'container', title: 'Business Manager', tech: `${o.sites.length} ${o.sites.length === 1 ? 'site' : 'sites'}` })
+    details.c_bm = { title: 'Business Manager', lines: [...o.sites.map((s) => `site ${s}`), ...o.attributes.map((a) => `${a.count} atributo(s) em ${a.type}`)] }
+
+    // APIs and processing
+    nodes.push({ id: LAYERS.api, type: 'boundary', title: 'APIs e processamento' })
+    nodes.push({ id: 'c_scapi', type: 'container', title: 'SCAPI / OCAPI', tech: ocapiHooks.length ? `${ocapiHooks.length} ${ocapiHooks.length === 1 ? 'hook' : 'hooks'} do projeto` : 'APIs da plataforma', parent: LAYERS.api })
+    details.c_scapi = { title: 'SCAPI / OCAPI', lines: ocapiHooks.map((h) => `${h.name} (${h.cartridge})`) }
+    if (triggered('webhook')) nodes.push({ id: 'c_webhook', type: 'container', title: 'Webhooks de entrada', tech: 'controllers de retorno', parent: LAYERS.api })
+    if (o.jobs.length) {
+      nodes.push({ id: 'c_jobs', type: 'container', title: 'Jobs', tech: `${o.jobs.length} ${o.jobs.length === 1 ? 'job' : 'jobs'} do projeto`, parent: LAYERS.api })
+      details.c_jobs = { title: 'Jobs', lines: o.jobs.map((j) => `${j.id} (${j.file})`) }
     }
 
-    const people: GraphNode[] = [
-      { id: 'p_cliente', type: 'person', title: 'Cliente', description: 'Navega e compra na loja' },
-      { id: 'p_equipe', type: 'person', title: 'Equipe da loja', description: 'Catálogo, promoções, conteúdo e configuração no Business Manager' },
-    ]
-    const ocapiHooks = o.hooks.filter((h) => /^dw\.ocapi\./.test(h.name))
-    const platform: GraphNode[] = [
-      { id: 'c_store', type: 'container', title: 'Storefront', tech: o.storefront.detail ? `${o.storefront.type} · ${o.storefront.detail}` : o.storefront.type, description: `${o.counts.controllers} controllers, ${o.counts.routes} rotas, ${o.counts.templates} templates ISML`, parent: 'b_b2c' },
-      { id: 'c_bm', type: 'container', title: 'Business Manager', tech: 'B2C Commerce', description: `${o.sites.length} site(s): ${o.sites.slice(0, 4).join(', ') || '—'}`, parent: 'b_b2c' },
-    ]
-    if (o.jobs.length) platform.push({ id: 'c_jobs', type: 'container', title: 'Jobs', tech: 'steptypes / jobs.xml', description: `${o.jobs.length} job(s)`, parent: 'b_b2c' })
-    if (ocapiHooks.length) platform.push({ id: 'c_api', type: 'container', title: 'SCAPI / OCAPI', tech: 'hooks dw.ocapi.*', description: `${ocapiHooks.length} hook(s) do projeto`, parent: 'b_b2c' })
-    platform.push({ id: 'd_data', type: 'db', title: 'Dados da instância', tech: 'B2C Commerce', description: `Catálogo, pedidos, clientes${o.attributes.length ? `; atributos em ${o.attributes.length} tipo(s)` : ''}`, parent: 'b_b2c' })
-    const b2c: GraphNode = { id: 'b_b2c', type: 'boundary', title: `${ws.name} · Salesforce B2C Commerce` }
-    const b2cSize = grid(platform, 3)
+    // the commerce core: its domains, with the custom attributes of each
+    nodes.push({ id: LAYERS.core, type: 'boundary', title: 'Salesforce B2C Commerce' })
+    for (const [re, nodeId, title] of SFCC_DOMAINS) {
+      const attrs = o.attributes.filter((a) => re.test(a.type))
+      const n = attrs.reduce((s, a) => s + a.count, 0)
+      if (nodeId === 'm_prefs' && !n) continue
+      nodes.push({ id: nodeId, type: 'container', title, tech: n ? `${n} ${n === 1 ? 'atributo custom' : 'atributos custom'}` : 'nativo', parent: LAYERS.core })
+      details[nodeId] = { title, lines: attrs.map((a) => `${a.count} atributo(s) custom em ${a.type}`) }
+    }
 
-    // the cartridge path: the order the platform resolves files in
-    const pathOrder = o.cartridgePaths[0]?.path ?? []
-    const names = [...pathOrder.filter((c) => o.cartridges.some((x) => x.name === c)), ...o.cartridges.map((c) => c.name).filter((c) => !pathOrder.includes(c))]
-    const role = (name: string) => (name === 'app_storefront_base' || /^modules$/.test(name) ? 'base SFRA' : /^(int|plugin|link|bm)_/.test(name) ? 'terceiro / integração' : 'projeto')
-    const carts: GraphNode[] = names.map((name, i) => {
-      const c = o.cartridges.find((x) => x.name === name)!
-      const nodeId = safeId('k', name)
-      const ctrl = o.controllers.filter((x) => x.cartridge === name)
-      details[nodeId] = {
-        title: name,
-        lines: [
-          ...ctrl.flatMap((x) => x.routes.map((r) => `${r.method} ${x.file.split('/').pop()?.replace(/\.(js|ds)$/, '')}-${r.name}`)).slice(0, 40),
-          ...o.hooks.filter((h) => h.cartridge === name).map((h) => `hook ${h.name}`),
-          ...o.serviceUses.filter((s) => s.cartridge === name).map((s) => `serviço ${s.service}`),
-        ],
-      }
-      return {
-        id: nodeId,
-        type: role(name) === 'projeto' ? 'container' : 'external',
-        title: `${pathOrder.length && i < pathOrder.length ? `${i + 1}. ` : ''}${name}`,
-        tech: role(name),
-        description: [`${c.controllers} controllers`, `${c.templates} templates`, `${c.scripts} scripts`, c.hooks ? `${c.hooks} hooks` : ''].filter(Boolean).join(' · '),
-        parent: 'b_carts',
-      }
-    })
-    const cartsBoundary: GraphNode = { id: 'b_carts', type: 'boundary', title: pathOrder.length ? `Cartridge path (${o.cartridgePaths[0].site})` : 'Cartuchos' }
-    const cartsSize = grid(carts, 4)
+    this.addIntegrations(found, { nodes, details, edge, to: { checkout: 't_checkout', browse: LAYERS.store, search: 't_plp', jobs: has('c_jobs') ? 'c_jobs' : undefined, api: 'c_scapi', webhook: has('c_webhook') ? 'c_webhook' : undefined, admin: 'c_bm' } })
 
-    // external services called from the code
-    const serviceIds = o.services.slice(0, MAX_SERVICES)
-    const externals: GraphNode[] = serviceIds.map((s) => ({ id: safeId('s', s), type: 'external', title: s, tech: 'dw.svc (LocalServiceRegistry)', description: `usado em ${o.serviceUses.filter((u) => u.service === s).map((u) => u.cartridge).join(', ') || '—'}` }))
-
-    nodes.push(...people, b2c, ...platform, ...(carts.length ? [cartsBoundary, ...carts] : []), ...externals)
-    stack([
-      { nodes: people, sizes: people.map(() => ({ w: EL_W, h: 120 })) },
-      { nodes: [b2c], sizes: [b2cSize] },
-      { nodes: carts.length ? [cartsBoundary] : [], sizes: [cartsSize] },
-      { nodes: externals, sizes: externals.map(() => ({ w: EL_W, h: 120 })) },
-    ])
-    // external services in rows of 6
-    externals.forEach((n, i) => {
-      if (i < 6) return
-      n.x = externals[i % 6].x
-      n.y = (externals[i % 6].y ?? 0) + Math.floor(i / 6) * (CELL_H + 20)
-    })
-
-    edge('p_cliente', 'c_store', 'Navega e compra', 'HTTPS')
+    edge('p_cliente', 'c_cdn', 'Navega e compra', 'HTTPS')
+    edge('c_cdn', LAYERS.store, 'Encaminha')
+    edge('x_api', 'c_scapi', 'Consome', 'REST')
     edge('p_equipe', 'c_bm', 'Opera', 'HTTPS')
-    // boundaries have no connection points: the arrows go to the first cartridge of the path
-    const first = carts[0]?.id
-    const firstOwn = carts.find((c) => c.tech === 'projeto')?.id ?? first
-    if (first) edge('c_store', first, 'Executa os controllers na ordem do path')
-    if (firstOwn) edge('c_api', firstOwn, 'Hooks')
-    if (firstOwn) edge('c_jobs', firstOwn, 'Steps dos jobs', undefined, true)
-    for (const c of ['c_store', 'c_bm', 'c_jobs', 'c_api']) edge(c, 'd_data', 'Lê e grava')
-    for (const u of o.serviceUses) edge(safeId('k', u.cartridge), safeId('s', u.service), 'Chama', 'HTTP')
+    edge(LAYERS.store, headless ? LAYERS.api : LAYERS.core, headless ? 'Usa' : 'Usa os domínios', headless ? 'SCAPI' : 'Script API')
+    edge(LAYERS.api, LAYERS.core, 'Expõe e processa')
 
-    details.c_store = { title: 'Storefront', lines: o.controllers.flatMap((x) => x.routes.map((r) => `${x.cartridge}: ${r.method} ${x.file.split('/').pop()?.replace(/\.(js|ds)$/, '')}-${r.name}`)).slice(0, 60) }
-    details.c_jobs = { title: 'Jobs', lines: o.jobs.map((j) => `${j.id} (${j.file})`) }
-    details.c_api = { title: 'SCAPI / OCAPI', lines: ocapiHooks.map((h) => `${h.name} (${h.cartridge})`) }
-    details.c_bm = { title: 'Business Manager', lines: [...o.sites.map((s) => `site ${s}`), ...o.attributes.map((a) => `${a.count} atributo(s) em ${a.type}`)] }
+    details[LAYERS.store] = { title: 'Storefront', lines: [`Cartridge path (contexto): ${pathOrder.join(' → ')}`, ...own.flatMap((x) => x.routes.map((r) => `${x.cartridge}: ${r.method} ${path.basename(x.file).replace(/\.(js|ds)$/, '')}-${r.name}`)).slice(0, 50)] }
     return { nodes, edges, details }
   }
 
   // ---- the live view -------------------------------------------------------------------------------
 
   /** A text summary of the graph, for Claude to build on */
-  private summarize(graph: Graph) {
+  private summarize(graph: Graph, details: Record<string, NodeDetail>) {
     const title = (id: string) => graph.nodes.find((n) => n.id === id)?.title ?? id
     return [
+      'Elementos:',
       ...graph.nodes.map((n) => `- [${n.type}] ${n.title}${n.tech ? ` (${n.tech})` : ''}${n.parent ? ` dentro de "${title(n.parent)}"` : ''}${n.description ? `: ${n.description}` : ''}`),
+      'Conexões:',
       ...graph.edges.map((e) => `- ${title(e.source)} → ${title(e.target)}${e.label ? `: ${e.label}` : ''}${e.tech ? ` [${e.tech}]` : ''}`),
+      'Evidências no código (contexto para confirmar e completar, não para desenhar):',
+      ...Object.values(details).flatMap((d) => [`- ${d.title}:`, ...d.lines.slice(0, 15).map((l) => `  - ${l}`)]),
     ].join('\n')
   }
 
@@ -358,8 +429,8 @@ export class LiveArchitectureService {
     const cached = this.cache.get(id)
     if (cached?.key === key) return cached
     const { nodes, edges, details } = ws.tech === 'salesforce-b2c' ? this.sfccGraph(id) : await this.adobe(id)
-    const graph: Graph = { version: 1, family: 'c4', nodes, edges }
-    const built = { key, graph, details, summary: this.summarize(graph) }
+    const graph = referenceLayout({ version: 1, family: 'c4', nodes, edges })
+    const built = { key, graph, details, summary: this.summarize(graph, details) }
     this.cache.set(id, built)
     return built
   }
@@ -442,16 +513,18 @@ export class LiveArchitectureService {
     const built = await this.build(id)
     const basedOn = ws.analyzedAt ?? null
     const request = [
-      `Arquitetura viva de ${ws.name}: modelo C4 de contêineres completo da plataforma, como ela está hoje no código.`,
-      'Parta deste levantamento, feito do mapeamento do projeto (é a base: mantenha o que estiver certo e complete):',
+      `Arquitetura viva de ${ws.name}: a arquitetura MACRO da plataforma (C4 de contêineres), como ela está hoje no código.`,
+      'Siga a skill "Arquitetura de referência" (reference-architecture): ela define o formato, sempre o mesmo em desenhos novos e atualizações. Em resumo: desenhe no formato de uma arquitetura de referência, em camadas. Use exatamente estes ids de grupo (boundary): b_store (storefront, com as partes da loja: home, catálogo e busca, produto, carrinho, checkout, conta), b_api (APIs e processamento: REST, GraphQL, SCAPI/OCAPI, webhooks de entrada, crons, consumers, jobs), b_core (a plataforma de commerce, com seus domínios: catálogo, carrinho e checkout, pedidos, clientes, pagamentos, preços e promoções, estoque… e os serviços SaaS do fabricante, com tech "SaaS Adobe" ou "SaaS Salesforce"), b_infra (banco, busca, cache, filas; omita no Salesforce B2C), b_cliente (sistemas do cliente: ERP, OMS, PIM, nota fiscal) e b_saas (SaaS e parceiros: pagamento, frete, antifraude, marketing, atendimento…). Personas sem grupo; a CDN com id c_cdn e o admin/Business Manager com id c_admin/c_bm, fora dos grupos. Caixas com títulos curtos; a contagem ou a tecnologia vai em tech. Entre as camadas da plataforma, ligue os grupos inteiros (ex.: c_cdn → b_store, b_store → b_core, b_api → b_core, b_core → b_infra), não caixa a caixa; ligue a uma caixa só a conexão com um sistema externo ou persona que entra por ela (ex.: o checkout chama o gateway de pagamento). Rótulos curtos.',
+      'NÃO desenhe módulos, cartuchos, plugins, observers, preferences, controllers ou classes: eles são a evidência para descobrir, nomear e conectar os serviços e integrações, e podem aparecer só na descrição de um elemento.',
+      'Parta deste levantamento, feito do mapeamento do projeto (é a base: mantenha o que estiver certo, corrija e complete):',
       built.summary,
-      'Complete lendo o código: as integrações com sistemas externos (ERP, OMS, PIM, pagamento, frete, antifraude, marketing), com direção, gatilho (síncrono, cron/job, fila, webhook) e protocolo; os módulos ou cartuchos que fazem cada uma; e os dados que trafegam. Agrupe por fronteiras (a loja, os sistemas do cliente, os SaaS). Nomes reais do código.',
+      'Complete lendo o código: confirme cada integração, descubra as que o levantamento não reconheceu, e dê a cada conexão direção, gatilho (síncrono no checkout, cron/job, fila, webhook) e protocolo, com o dado que trafega no rótulo. Diga quando uma integração está definida mas sem chamada no código. Use os nomes reais dos sistemas.',
     ].join('\n\n')
     const started = this.generator.start(id, { request, scenario: 'custom', type: 'c4-container' }, (diagram) => {
-      // Claude sends no positions: arrange it in layers, like the mapping view
+      // arrange it in the same layers as the mapping view
       try {
         const saved = this.diagrams.get(id, diagram.id)
-        this.diagrams.save(id, diagram.id, { mode: 'canvas', source: JSON.stringify(layered(JSON.parse(saved.source) as Graph)) })
+        this.diagrams.save(id, diagram.id, { mode: 'canvas', source: JSON.stringify(referenceLayout(JSON.parse(saved.source) as Graph)) })
       } catch {
         // the editor's own layout still works
       }

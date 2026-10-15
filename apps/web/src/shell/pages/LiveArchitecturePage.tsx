@@ -1,11 +1,10 @@
-import { applyNodeChanges, Background, BackgroundVariant, Controls, MiniMap, ReactFlow, ReactFlowProvider, useReactFlow, type Node, type NodeChange } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ReactFlowProvider } from '@xyflow/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, waitJob, type Job } from '../api'
-import { graphToFlow, nodeTypes } from '../diagrams/CanvasEditor'
 import { parseGraphSource, type Graph } from '../diagrams/graph'
 import { SkillUses } from '../skills'
+import { LiveArchitectureCanvas } from './LiveArchitectureCanvas'
 
 /** Mirrors apps/api/src/diagrams/live-architecture.service.ts */
 interface LiveView {
@@ -21,43 +20,6 @@ interface LiveView {
 
 const POLL_MS = 15_000
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
-
-/** The architecture on a canvas: nodes can be moved (the arrangement is kept), nothing else is edited here */
-function LiveCanvas({ graph, revision, onMoved, onSelect }: { graph: Graph; revision: string; onMoved?: (positions: Record<string, { x: number; y: number }>) => void; onSelect: (id: string | null) => void }) {
-  const init = useMemo(() => graphToFlow(graph), [graph])
-  const [nodes, setNodes] = useState<Node[]>(init.nodes as Node[])
-  const { fitView } = useReactFlow()
-  useEffect(() => {
-    setNodes(init.nodes as Node[])
-    // a new version of the drawing fits the screen again
-    window.setTimeout(() => fitView({ padding: 0.12, duration: 300 }), 60)
-  }, [init, revision, fitView])
-  const onNodesChange = useCallback((changes: NodeChange[]) => setNodes((ns) => applyNodeChanges(changes.filter((c) => c.type === 'position' || c.type === 'select' || c.type === 'dimensions'), ns)), [])
-  return (
-    <ReactFlow
-      nodes={nodes}
-      edges={init.edges}
-      nodeTypes={nodeTypes}
-      onNodesChange={onNodesChange}
-      onNodeDragStop={(_e, node) => onMoved?.({ [node.id]: { x: node.position.x, y: node.position.y } })}
-      onNodeClick={(_e, node) => onSelect(node.id)}
-      onPaneClick={() => onSelect(null)}
-      nodesDraggable={Boolean(onMoved)}
-      nodesConnectable={false}
-      edgesFocusable={false}
-      deleteKeyCode={null}
-      fitView
-      fitViewOptions={{ padding: 0.12 }}
-      minZoom={0.1}
-      proOptions={{ hideAttribution: true }}
-      colorMode="dark"
-    >
-      <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#2a2a2e" />
-      <Controls showInteractive={false} />
-      <MiniMap pannable zoomable maskColor="rgba(0,0,0,0.55)" nodeColor="#3f3f46" />
-    </ReactFlow>
-  )
-}
 
 /** Arquitetura → Arquitetura viva: the platform drawn from the mapping, following each analysis */
 export function LiveArchitecturePage() {
@@ -172,7 +134,7 @@ export function LiveArchitecturePage() {
         <div style={{ minWidth: 0 }}>
           <h1>Arquitetura viva</h1>
           <p>
-            Desenhada a partir do mapeamento do projeto, sem IA: se atualiza sozinha a cada nova análise. Arraste as caixas para organizar; o arranjo é mantido quando o conteúdo muda.
+            A arquitetura de referência da plataforma, em camadas: storefront, APIs e processamento, os domínios da plataforma e a infraestrutura, com os sistemas do cliente e os parceiros nas laterais. É montada a partir do mapeamento do projeto e atualizada a cada nova análise. Módulos, plugins, observers e cartuchos entram como evidência: clique num elemento para ver. Arraste as caixas para organizar; o arranjo é mantido.
           </p>
         </div>
         <div className="sf-row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -233,7 +195,7 @@ export function LiveArchitecturePage() {
             <div className="sf-faint" style={{ padding: 24 }}>{running ? 'Aguardando o desenho do Claude…' : 'O Claude ainda não desenhou esta arquitetura.'}</div>
           ) : (
             <ReactFlowProvider>
-              <LiveCanvas
+              <LiveArchitectureCanvas
                 graph={showing}
                 revision={`${tab}|${tab === 'live' ? view.basedOn : view.claude?.at}`}
                 onSelect={setSelected}

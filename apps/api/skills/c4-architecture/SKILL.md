@@ -15,6 +15,16 @@ description: Use ao desenhar ou descrever arquitetura com o modelo C4 (contexto,
 
 Um diagrama, um nível. Para mostrar dois níveis, faça dois diagramas.
 
+## Arquitetura macro de uma loja (o pedido mais comum)
+
+Quando pedirem "a arquitetura da plataforma" ou "a arquitetura macro", desenhe o nível de contêineres com os sistemas externos:
+
+- **Personas**: cliente, equipe da loja (admin / Business Manager) e, quando o código mostrar, comprador B2B, lojista de marketplace, atendimento, e os sistemas que chamam as APIs.
+- **Serviços da plataforma**: storefront, admin ou Business Manager, APIs, crons/jobs e consumers, banco, busca, cache, filas e CDN.
+- **Integrações externas**: ERP, OMS, PIM, pagamento, frete, antifraude, nota fiscal, marketing/CRM, busca SaaS, avaliações. Agrupe em "sistemas do cliente" e "SaaS e parceiros".
+
+Módulos, cartuchos, plugins, observers, preferences, controllers e classes **não são caixas** nesse nível. Eles são a **evidência**: mostram que uma integração existe, como ela é disparada (checkout, cron, fila, webhook) e quem a faz. Cite-os na descrição do elemento ou na conexão ("via módulo Loja_Erp, cron a cada 15 min"), nunca como elemento.
+
 ## Regras
 
 - **Todo elemento tem nome, tipo e uma frase de responsabilidade.** Containers e componentes também levam a tecnologia: "PHP 8.3 / Magento 2.4.7", "SFRA / cartucho app_custom", "MySQL 8", "RabbitMQ".

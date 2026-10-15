@@ -39,6 +39,8 @@ Para cada integração encontrada no código, descubra o módulo, o gatilho (obs
 
 ## Ao desenhar
 
+Na arquitetura macro, os módulos não aparecem como caixas: são a evidência das integrações e das customizações de cada contêiner (veja a skill de arquitetura C4). Os níveis abaixo são para quando o pedido for explicitamente de componentes.
+
 - **C1:** clientes, operadores do admin, a loja e os sistemas externos encontrados.
 - **C2:** os containers acima que o projeto usa, com as filas e crons relevantes.
 - **C3:** os módulos próprios (`app/code/<Vendor>`) de uma área, e como se ligam aos módulos nativos (plugins, observers, preferences).
