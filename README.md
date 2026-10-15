@@ -76,6 +76,25 @@ Em **Desenvolvimento → Refinamento** você leva uma demanda do texto cru até 
 
 Em **Desenvolvimento → Git** fica a visão do repositório local: branch atual, alterações, branches com ahead/behind e último commit, worktrees com alterações pendentes, stashes, remotos e os últimos commits. As ações são fetch, pull (fast-forward), checkout, nova branch (com ou sem worktree), criar ou remover worktree, limpar worktrees órfãos, excluir branch e **push**, sempre com confirmação. O card da tarefa leva direto à branch dela nessa tela.
 
+### Refinamento em projetos Salesforce B2C (modo aprendendo SFCC)
+
+Num projeto Salesforce B2C o refinamento usa o perfil SFCC, pensado para quem vem do Adobe Commerce. O modo aprendendo fica sempre ligado:
+
+- O Claude responde como arquiteto SFRA. Ele parte da estrutura do projeto lida pelo painel (cartuchos, cartridge path do site, hooks, serviços e jobs) e do conhecimento curado em `apps/api/src/techs/sfcc/knowledge.ts`: equivalências Adobe → SFCC, regras do SFRA e a documentação oficial que ele pode citar.
+- Cada resposta termina com **"Para quem vem do Adobe"**: como seria no Magento, como é no SFCC e o que muda no jeito de pensar.
+- O card refinado ganha duas seções. **Passos no Business Manager** lista atributos, site preferences, serviços, jobs, promoções e cartridge path, com o caminho no BM, e vai junto para o Jira e o Azure DevOps. O **guia "Para quem vem do Adobe"** fica no painel e na cópia em Markdown, com links só para a documentação da Salesforce.
+- O desenvolvimento segue o padrão SFRA (`server.extend(module.superModule)`, `append`/`prepend`, nada em `app_storefront_base`) e verifica com os scripts que o `package.json` tem (`lint`, `test`, `compile:js`/`compile:scss`). Ele não faz upload.
+
+### Upload para a instância (Salesforce B2C)
+
+Em **Instância → Upload para a instância** o painel explica como o código chega na sandbox e faz o envio com a ferramenta do próprio projeto:
+
+- **Como funciona.** O `dw.json` na raiz diz para onde enviar (`hostname`, `username`, `password`, `code-version`). O `dwupload`, que vem com o `sgmf-scripts` do SFRA, zipa cada cartucho e o envia por WebDAV para a code version. O `npm run watch` do SFRA compila o JS e o SCSS e sobe cada arquivo salvo, e o `npm run uploadCartridge` sobe cartuchos inteiros. A tela mostra as ferramentas que encontrou no projeto (scripts do `package.json`, `dwupload`, extensão Prophet do VS Code, `sfcc-ci`, `b2c-tools`) e explica cada uma.
+- **De onde enviar.** Da pasta do projeto ou do worktree de uma tarefa (o card tem o atalho "Enviar para a sandbox"). Os cartuchos alterados na tarefa já vêm marcados.
+- **Enviar cartuchos** sobe os escolhidos de uma vez. **Upload automático** (`dwupload watch`) sobe cada arquivo salvo até você parar. As duas ações pedem confirmação, mostrando a instância e a code version, e ficam na auditoria como requisição externa.
+- **Credenciais.** O painel mostra só o hostname, a code version e se há usuário e senha. O `dwupload` lê o `dw.json` sozinho. Para isso, uma cópia temporária fica em `cartridges/` só enquanto o envio roda, como faz o `sgmf-scripts`. O envio é recusado se o `.gitignore` não ignorar `dw.json`. Usuário e senha são mascarados no log, e o Claude Code nunca lê `dw.json` nem `app/etc/env.php` (regra `Read(**/dw.json)` em todas as sessões).
+- **Pré-requisitos.** `dw.json` com hostname e usuário, e o `dwupload` instalado (`npm install` no projeto). Quando falta algo, a tela avisa. Se a mudança tocou em `cartridge/client`, a tela lembra de compilar antes de enviar.
+
 Os cards ficam em `~/.agentic-toolkit`. Se a pasta conectada não for um repositório git (por exemplo, uma cópia ou um .zip), o Git e o desenvolvimento por tarefa avisam e levam para **Configurações → Workspace → Repositório git**; o refinamento continua funcionando.
 
 ## Configurações do workspace e pré-requisitos
@@ -130,7 +149,7 @@ Na conexão você escolhe a tecnologia da instalação. Cada uma tem a sua detec
 - **Adobe Commerce** (Magento 2): módulos, APIs, plugins, observers, crons, filas e rotas, com a análise completa do extrator.
 - **Salesforce B2C Commerce** (SFCC): lê o projeto com `cartridges/`: cartuchos, controllers SFRA e pipelines `.ds`, templates ISML, hooks, jobs (`<job job-id>`), serviços (`LocalServiceRegistry.createService`), sites e atributos customizados em `meta/`. A seção Instância mostra o hostname e o `code-version` do `dw.json`, e avisa se há credenciais guardadas no projeto, sem mostrar os valores.
 
-Limites atuais do Salesforce B2C: a documentação gerada pelo Claude ainda não está disponível (ela depende do mapa de integrações do Magento), e as ações na instância (enviar código, rodar jobs, consultar OCAPI) ainda não existem, porque dependem de um cofre de credenciais.
+Limites atuais do Salesforce B2C: a documentação gerada pelo Claude ainda não está disponível (ela depende do mapa de integrações do Magento). Na instância, o painel só envia código, pelo `dw.json` do projeto (veja "Upload para a instância"). Rodar jobs e consultar OCAPI ainda não existem, porque dependem de um cofre de credenciais.
 
 ## Onde os dados ficam no computador
 
@@ -153,7 +172,8 @@ Ler o código é a regra da maior parte das telas, mas escrever deixou de ser pr
 | Toda rota declara uma ação | Rota sem `@Action` é bloqueada (fail closed). Cada ação tem tipo (leitura, dados, externa, escrita no repositório), método HTTP permitido e validador próprio, executado antes do handler. |
 | Telas de análise só leem | Visão geral, mapas, explorador de código, "Pergunte ao código", diagramas e o refinamento acessam o código por `ReadOnlyFs` (sem métodos de escrita; bloqueia `../`, caminhos absolutos e links simbólicos para fora) ou pelo Claude Code com `--tools Read,Grep,Glob`. |
 | Escrita no repositório só onde é o objetivo | Git (branches, worktrees, pull, push) e desenvolvimento por tarefa, sempre a partir de um botão com confirmação e registrados na auditoria como "escrita no repositório". O desenvolvimento roda no worktree da tarefa, nunca na pasta principal, e termina em commit sem push. O push é uma ação separada, com confirmação. |
-| Credenciais nunca lidas | `app/etc/env.php`, `auth.json`, `.env`, chaves e `.git/config` são listados, mas o conteúdo é recusado (inclusive para a IA). URLs de remotos aparecem com as credenciais mascaradas. |
+| Credenciais nunca lidas | `app/etc/env.php`, `auth.json`, `.env`, chaves e `.git/config` são listados, mas o conteúdo é recusado (inclusive para a IA). Toda sessão do Claude Code nega `Read(**/dw.json)` e `Read(**/app/etc/env.php)`, o que também esconde esses arquivos do Grep e do Glob. URLs de remotos aparecem com as credenciais mascaradas. |
+| Upload só com a ferramenta do projeto | O envio para uma instância Salesforce B2C roda o `dwupload` do `node_modules` do projeto, sem shell, a partir de `cartridges/`, só com `--cartridge <nome>` (e `watch`). As credenciais ficam no `dw.json`, nunca em argumentos. É classificado como requisição externa. |
 | Comandos sem shell | Tudo roda pelo `CommandRunner`, sem shell. No git, continuam bloqueadas as opções que executam outro programa (`--upload-pack`, `--receive-pack`, `--exec`, `--template`, `-c core.hooksPath/sshCommand/fsmonitor`, `protocol.*.allow=always`) e clones `file://`. O Claude Code roda sempre em modo não interativo (`-p`), sem MCP e ignorando o `.claude/` do repositório do projeto. |
 | Simulador de API não toca no repositório | As requisições vão só para a URL que você informou (http/https, sem credenciais na URL, nunca para o próprio Agentic Toolkit), classificadas como "requisição externa" na auditoria. |
 | Auditoria e autoteste | Toda ação (permitida ou bloqueada) vai para o log. A tela "Regras & auditoria" roda um autoteste de cada proteção. |
@@ -255,6 +275,32 @@ Em **Configurações**, escolha o provedor de "Pergunte ao código":
 | **Claude Code local** (padrão) | Usa a sua sessão do Claude Code. Roda dentro da instalação com `--tools Read,Grep,Glob`, `--disallowedTools Edit,Write,Bash,…`, `--setting-sources user` e `--strict-mcp-config`, com leitura do mapa via `--add-dir` (só o diretório de dados). |
 | **API da Anthropic** | `claude-opus-5-5`, num loop com ferramentas próprias que só leem: `list_dir`, `read_file`, `grep` e `search_map`. A chave fica só em memória (ou em `ANTHROPIC_API_KEY`). |
 | **Modelo local / compatível com OpenAI** | Ollama, LM Studio, vLLM… com as mesmas ferramentas. O modelo precisa suportar tool calling. |
+
+### Tarefas do Refinamento no "Pergunte ao código"
+
+A conversa conhece as tarefas do Refinamento deste workspace:
+
+- **Vincular**: "+ Vincular tarefa do Refinamento" acima da caixa de texto, ou o atalho "Perguntar sobre esta tarefa" no card (abre `/w/<id>/ask?card=<card>`).
+- **Colar o link** do card (`…/w/<id>/refinamento/<card>`) ou citar o id (`tarefa a1b2c3d4e5`) na pergunta. A tarefa entra no contexto e fica vinculada nas próximas perguntas. Link de outro workspace é avisado, não lido.
+- **Pedir para buscar** ("busque a tarefa do frete grátis"): o Claude procura no índice das tarefas e lê a que encontrar.
+
+A tarefa vinculada vai inteira para o contexto: negócio, descrição técnica, plano (com os passos feitos), critérios de aceite, observações, passos no Business Manager, status e resumo do desenvolvimento, e os arquivos que a branch mudou. Com o Claude Code, o **worktree** da tarefa também fica liberado para leitura, porque é lá que está o código desenvolvido. O índice e os arquivos das tarefas ficam em `~/.agentic-toolkit/.../ask-context/`, nunca no projeto. A conversa também leva as últimas 6 perguntas e respostas, para perguntas de seguimento ("e para os outros idiomas?").
+
+### Skills do Claude
+
+Toda funcionalidade que roda o Claude Code recebe **skills** do Agentic Toolkit, de acordo com a tecnologia do workspace: Pergunte ao código, Refinamento, Desenvolvimento por tarefa, OpenSpec, Diagramas e Documentação. Uma skill é um `SKILL.md` com o conhecimento de como fazer bem aquele tipo de trabalho. Elas ficam em `apps/api/skills/<id>/SKILL.md`, e o catálogo (que liga cada skill às tecnologias e funcionalidades) fica em `apps/api/src/skills/catalog.ts`.
+
+| Grupo | Skills |
+|---|---|
+| Comuns | investigação do código, refinamento de demandas, entrega de tarefas, escrita OpenSpec, arquitetura C4, diagramas Mermaid, documentação técnica |
+| Adobe Commerce | módulos, plugins/observers/DI, dados (schema, patches, EAV), frontend (layout, templates, JS), APIs e integrações, admin/configuração/ACL, cron/filas/indexers, carrinho/checkout/pedido, qualidade e testes, arquitetura da loja |
+| Salesforce B2C | controllers SFRA, cartuchos e módulos, hooks/carrinho/pedido, ISML/textos/assets, metadata e Business Manager, serviços e integrações, jobs, qualidade e testes, deploy e upload, arquitetura da loja |
+
+- **Feature flags.** Em **Configurações → Skills do Claude** dá para desligar todas ou cada uma, ver o `SKILL.md` e os usos recentes. Uma skill desligada não chega a nenhuma sessão.
+- **Como chegam ao Claude.** As skills ligadas daquela funcionalidade e tecnologia viram um plugin montado em `~/.agentic-toolkit/skills-runtime/` e passado com `--plugin-dir`. A sessão ganha a ferramenta `Skill` e a lista das skills no system prompt. Nada é escrito no projeto.
+- **Relato de uso.** Quando o Claude carrega uma skill, a tela mostra `⏺ Skill(agentic-toolkit:nome)`, como no Claude Code: no chat e no card do refinamento, no painel de desenvolvimento, no Pergunte ao código, no chat do OpenSpec e no log dos diagramas e da documentação.
+- As sessões continuam com `--setting-sources user` (para usar o modelo que você escolheu no Claude Code), então os seus plugins pessoais também ficam disponíveis. O system prompt orienta o Claude a preferir as skills do Agentic Toolkit.
+- As skills valem para o Claude Code. Os provedores "API da Anthropic" e "modelo local" do Pergunte ao código não as usam.
 
 ## Compartilhando com o time
 

@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom'
 import { api } from './api'
 
 /** Mirrors apps/api/src/settings/workspace-settings.service.ts */
-export type SettingsSection = 'origem' | 'projeto' | 'repositorio' | 'variaveis' | 'ia'
-export type PrerequisiteId = 'analysis' | 'git' | 'git-remote' | 'claude-code' | 'ai'
+export type SettingsSection = 'origem' | 'projeto' | 'repositorio' | 'variaveis' | 'ia' | 'skills'
+export type PrerequisiteId = 'analysis' | 'git' | 'git-remote' | 'claude-code' | 'ai' | 'sfcc-dw' | 'sfcc-dwupload'
 export interface Prerequisite {
   id: PrerequisiteId
   label: string
   ok: boolean
   detail: string
-  fix: { section: SettingsSection; label: string }
+  /** A section of Configurações, or another screen under /w/:id (`to`) */
+  fix: { section: SettingsSection; label: string; to?: string }
 }
 
 /** Link to one section of Configurações */
@@ -55,7 +56,17 @@ export const FEATURE_NEEDS: Record<string, { name: string; needs: Need[] }> = {
   ask: { name: 'Pergunte ao código', needs: [{ id: 'ai', why: 'As respostas vêm do provedor de IA configurado.' }] },
   diagrams: { name: 'Diagramas', needs: [{ id: 'claude-code', why: '"Criar com o Claude" usa o Claude Code; desenhar à mão funciona sem ele.', partial: true }] },
   docs: { name: 'Documentação', needs: [{ id: 'claude-code', why: 'A documentação é escrita pelo Claude Code.' }] },
+  'sfcc-upload': {
+    name: 'Upload para a instância',
+    needs: [
+      { id: 'sfcc-dw', why: 'O upload usa o hostname, o usuário e a code version do dw.json.' },
+      { id: 'sfcc-dwupload', why: 'O envio é feito pelo dwupload instalado no projeto (npm install).' },
+    ],
+  },
 }
+
+/** The feature of a route under /w/:id, as FEATURE_NEEDS names it */
+export const featureOf = (sub: string) => (sub === 'sfcc/upload' ? 'sfcc-upload' : sub.split('/')[0])
 
 /** The workspace's prerequisites, checked again when settings change or the window gets focus */
 export function usePrerequisites(workspaceId: string) {
@@ -106,7 +117,7 @@ export function PrereqNotice({ workspaceId, feature }: { workspaceId: string; fe
               {p!.detail}
             </div>
           </div>
-          <Link className="sf-btn small" to={settingsLink(workspaceId, p!.fix.section)}>
+          <Link className="sf-btn small" to={p!.fix.to ? `/w/${workspaceId}/${p!.fix.to}` : settingsLink(workspaceId, p!.fix.section)}>
             {p!.fix.label} →
           </Link>
         </div>

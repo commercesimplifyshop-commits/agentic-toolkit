@@ -38,7 +38,9 @@ const OPENSPEC_VALIDATE_FLAGS = ['--all', '--changes', '--specs', '--json', '--s
 
 /** Tools for the features that only read (explore, refinement, documentation): they pass these themselves */
 export const CLAUDE_READONLY_TOOLS = ['Read', 'Grep', 'Glob']
-export const CLAUDE_DENIED_TOOLS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch']
+/** Credential files Claude never opens (Read rules also hide them from Grep and Glob) */
+export const CLAUDE_SECRET_FILES = ['Read(**/dw.json)', 'Read(**/app/etc/env.php)']
+export const CLAUDE_DENIED_TOOLS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', ...CLAUDE_SECRET_FILES]
 
 /**
  * Publishing a finished doc to Claude Docs is a separate run with no access to
@@ -88,6 +90,8 @@ export class CommandRunner {
         return this.validateOpenSpec(args, opts)
       case 'claude-docs':
         return this.validateClaudeDocs(args, opts)
+      case 'dwupload':
+        return this.validateDwupload(args, opts)
       default:
         throw new ReadOnlyViolation(`Programa não permitido: ${cmd}`, 'cmd.not-allowed')
     }
@@ -114,6 +118,21 @@ export class CommandRunner {
     }
     if (args.some((a) => a === '--store' || a.startsWith('--store='))) throw new ReadOnlyViolation('--store aponta para outro repositório: não permitido', 'cmd.openspec-store')
     if (!opts.cwd) throw new ReadOnlyViolation('OpenSpec precisa de um diretório de trabalho', 'cmd.openspec-cwd')
+  }
+
+  /**
+   * The project's own dwupload (Salesforce B2C upload over WebDAV), run with this Node from the
+   * cartridges folder: only "--cartridge <name>", optionally in watch mode. Credentials come from
+   * dw.json, read by dwupload itself, never from arguments.
+   */
+  private validateDwupload(args: string[], opts: RunOptions) {
+    if (!/[\\/]node_modules[\\/](?:sgmf-scripts[\\/]node_modules[\\/])?dwupload[\\/]index\.js$/.test(opts.executable ?? '')) throw new ReadOnlyViolation('Executável do dwupload não reconhecido', 'cmd.dwupload-entry')
+    if (!opts.cwd || path.basename(opts.cwd) !== 'cartridges') throw new ReadOnlyViolation('O dwupload roda na pasta cartridges/', 'cmd.dwupload-cwd')
+    const rest = args[0] === 'watch' ? args.slice(1) : args
+    if (rest.length === 0 || rest.length % 2 !== 0) throw new ReadOnlyViolation('dwupload aceita só --cartridge <nome>', 'cmd.dwupload-args')
+    for (let i = 0; i < rest.length; i += 2) {
+      if (rest[i] !== '--cartridge' || !/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}$/.test(rest[i + 1] ?? '')) throw new ReadOnlyViolation('dwupload aceita só --cartridge <nome>', 'cmd.dwupload-args')
+    }
   }
 
   private validateClaudeDocs(args: string[], opts: RunOptions) {
@@ -159,9 +178,10 @@ export class CommandRunner {
   run(cmd: string, args: string[], opts: RunOptions = {}): Promise<RunResult> {
     this.validate(cmd, args, opts)
     return new Promise((resolve, reject) => {
-      // The OpenSpec CLI is a Node script: run it with this Node, never through a shell
-      const target = cmd === 'openspec' ? process.execPath : (opts.executable ?? (cmd === 'node' ? process.execPath : cmd === 'claude-docs' ? 'claude' : cmd))
-      const argv = cmd === 'openspec' ? [opts.executable ?? '', ...args] : args
+      // The OpenSpec CLI and dwupload are Node scripts: run them with this Node, never through a shell
+      const script = cmd === 'openspec' || cmd === 'dwupload'
+      const target = script ? process.execPath : (opts.executable ?? (cmd === 'node' ? process.execPath : cmd === 'claude-docs' ? 'claude' : cmd))
+      const argv = script ? [opts.executable ?? '', ...args] : args
       const child = spawn(target, argv, {
         cwd: opts.cwd,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...opts.env },

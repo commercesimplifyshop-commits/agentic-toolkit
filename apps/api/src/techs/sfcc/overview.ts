@@ -40,6 +40,8 @@ export interface SfccOverview {
   jobs: { id: string; file: string }[]
   services: string[]
   sites: string[]
+  /** Cartridge path per site, from the site import (sites/<site>/site.xml), when the project versions it */
+  cartridgePaths: { site: string; path: string[] }[]
   /** Custom attribute definitions per object type (meta/*.xml) */
   attributes: { type: string; count: number }[]
   counts: { cartridges: number; controllers: number; routes: number; pipelines: number; templates: number; scripts: number; jobs: number; services: number; sites: number; hooks: number }
@@ -82,7 +84,7 @@ export function sfccOverview(rofs: ReadOnlyFs, root: string, name: string): Sfcc
       } else if (/^cartridge\/scripts\/.+\.js$/.test(rest)) {
         c.scripts++
         scriptFiles.push(f)
-      } else if (rest === 'hooks.json') {
+      } else if (rest === 'hooks.json' || /^cartridge\/scripts\/hooks\.json$/.test(rest)) {
         hookFiles.push({ cartridge, file: f })
       }
     }
@@ -130,7 +132,13 @@ export function sfccOverview(rofs: ReadOnlyFs, root: string, name: string): Sfcc
   }
 
   const sites = new Set<string>()
-  for (const f of siteFiles) for (const x of read(f).matchAll(/site-id="([^"]+)"/g)) sites.add(x[1])
+  const cartridgePaths: SfccOverview['cartridgePaths'] = []
+  for (const f of siteFiles) {
+    const src = read(f)
+    for (const x of src.matchAll(/site-id="([^"]+)"/g)) sites.add(x[1])
+    const cp = src.match(/<custom-cartridges>([^<]+)<\/custom-cartridges>/)
+    if (cp) cartridgePaths.push({ site: src.match(/site-id="([^"]+)"/)?.[1] ?? f.split('/')[1], path: cp[1].split(':').map((c) => c.trim()).filter(Boolean) })
+  }
   try {
     for (const e of rofs.list(root, 'sites')) if (e.type === 'dir') sites.add(e.name)
   } catch {
@@ -185,6 +193,7 @@ export function sfccOverview(rofs: ReadOnlyFs, root: string, name: string): Sfcc
     jobs,
     services: Array.from(services).sort(),
     sites: Array.from(sites).sort(),
+    cartridgePaths,
     attributes: Array.from(attrs, ([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
     counts: {
       cartridges: cartridges.length,

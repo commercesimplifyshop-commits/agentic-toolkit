@@ -4,19 +4,21 @@ import { AiService } from '../ai/ai.service'
 import { AnalysisService } from '../analysis/analysis.service'
 import { GitOpsService } from '../gitops/gitops.service'
 import { CommandRunner } from '../readonly/command-runner.service'
+import { SfccUploadService } from '../techs/sfcc/upload.service'
 import { GitService, type GitAuth } from '../workspaces/git.service'
 import { WorkspacesService } from '../workspaces/workspaces.service'
 import { WorkspaceEnvService, type EnvVarView } from './workspace-env.service'
 
 /** Where a missing prerequisite is fixed: a section of Configurações */
-export type SettingsSection = 'origem' | 'projeto' | 'repositorio' | 'variaveis' | 'ia'
+export type SettingsSection = 'origem' | 'projeto' | 'repositorio' | 'variaveis' | 'ia' | 'skills'
 
 export interface Prerequisite {
-  id: 'analysis' | 'git' | 'git-remote' | 'claude-code' | 'ai'
+  id: 'analysis' | 'git' | 'git-remote' | 'claude-code' | 'ai' | 'sfcc-dw' | 'sfcc-dwupload'
   label: string
   ok: boolean
   detail: string
-  fix: { section: SettingsSection; label: string }
+  /** Where it is fixed: a section of Configurações, or another screen (`to`, under /w/:id) */
+  fix: { section: SettingsSection; label: string; to?: string }
 }
 
 export interface SettingsPatch {
@@ -46,6 +48,7 @@ export class WorkspaceSettingsService {
     private readonly analysis: AnalysisService,
     private readonly runner: CommandRunner,
     private readonly git: GitService,
+    private readonly upload: SfccUploadService,
   ) {}
 
   /** The repository the Git screen and the tasks use, or why there is none */
@@ -141,7 +144,7 @@ export class WorkspaceSettingsService {
     const bin = this.ai.claudeBinary()
     const providers = await this.ai.providers()
     const active = providers.providers.find((p) => p.id === providers.active)
-    return [
+    const list: Prerequisite[] = [
       {
         id: 'analysis',
         label: 'Projeto analisado',
@@ -178,5 +181,7 @@ export class WorkspaceSettingsService {
         fix: { section: 'ia', label: 'Configurar a IA' },
       },
     ]
+    if (ws.tech === 'salesforce-b2c' && ws.root) list.push(...this.upload.prerequisites(id))
+    return list
   }
 }

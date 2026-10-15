@@ -1,4 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { runClaudeWatchingSkills, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
+import { TaskContextService, type LinkedTask, type TaskMaterial } from '../refine/task-context.service'
 import { BadRequestException, Injectable } from '@nestjs/common'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -26,7 +29,18 @@ export interface AskResult {
   model?: string
   toolCalls: { name: string; input: unknown }[]
   stopReason?: string
+  /** Skills Claude Code loaded for this answer */
+  skills?: { name: string; title: string }[]
+  /** Refinement tasks the question was linked to */
+  tasks?: LinkedTask[]
 }
+
+/** Earlier turns of the conversation, so a follow-up question keeps its context */
+export interface AskTurn {
+  question: string
+  answer: string
+}
+const MAX_HISTORY = 6
 
 const SETTINGS_FILE = path.join(CORE_DIR, 'settings.json')
 const DEFAULTS: AiSettings = {
@@ -48,6 +62,8 @@ export class AiService {
     private readonly maps: MapStore,
     private readonly overview: OverviewService,
     private readonly runner: CommandRunner,
+    private readonly skills: SkillsService,
+    private readonly tasks: TaskContextService,
   ) {}
 
   settings(): AiSettings {
@@ -146,12 +162,27 @@ export class AiService {
     return { root, summary, tech: ws.tech, map: this.maps.readMap(id), notes: this.maps.readAnnotations(id) }
   }
 
-  async ask(id: string, question: string): Promise<AskResult> {
+  async ask(id: string, question: string, opts: { cards?: string[]; history?: AskTurn[] } = {}): Promise<AskResult> {
     const s = this.settings()
     const ctx = await this.context(id)
-    if (s.provider === 'claude-code') return this.askClaudeCode(ctx.root, this.maps.dir(id), id, ctx.summary, question)
-    if (s.provider === 'anthropic') return this.askAnthropic(ctx, question)
-    return this.askOpenAiCompatible(ctx, question)
+    const material = await this.tasks.prepare(id, question, opts.cards)
+    const history = (opts.history ?? []).slice(-MAX_HISTORY)
+    const prompt = [
+      ctx.summary,
+      material.blocks,
+      material.elsewhere.length ? `O usuário colou link(s) de tarefa de outro workspace, que esta conversa não acessa: ${material.elsewhere.join(', ')}. Diga isso se for relevante.` : '',
+      history.length ? `Conversa até aqui:\n${history.map((t) => `Usuário: ${t.question}\nVocê: ${t.answer.slice(0, 3000)}`).join('\n\n')}` : '',
+      `Pergunta: ${question}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+    const result =
+      s.provider === 'claude-code'
+        ? await this.askClaudeCode(ctx.root, this.maps.dir(id), id, prompt, material)
+        : s.provider === 'anthropic'
+          ? await this.askAnthropic(ctx, prompt)
+          : await this.askOpenAiCompatible(ctx, prompt)
+    return { ...result, tasks: material.linked }
   }
 
   // ---- Anthropic API: manual tool loop over read-only tools ------------------------
@@ -161,7 +192,7 @@ export class AiService {
     const apiKey = this.keys.anthropic ?? process.env.ANTHROPIC_API_KEY
     const client = new Anthropic(apiKey ? { apiKey } : {})
     const tools: Anthropic.Beta.BetaTool[] = READONLY_TOOLS.map((t) => ({ ...t, strict: true }))
-    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: `${ctx.summary}\n\nPergunta: ${question}` }]
+    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: question }]
     const toolCalls: AskResult['toolCalls'] = []
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -206,7 +237,7 @@ export class AiService {
 
   // ---- Claude Code local: read-only tool set, runs inside the Magento root -------------
 
-  private async askClaudeCode(root: string, mapsDir: string, id: string, summary: string, question: string): Promise<AskResult> {
+  private async askClaudeCode(root: string, mapsDir: string, id: string, prompt: string, material: TaskMaterial): Promise<AskResult> {
     const bin = this.claudeBinary()
     if (!bin) throw new BadRequestException('Claude Code não encontrado nesta máquina')
     const s = this.settings().claudeCode
@@ -227,20 +258,24 @@ export class AiService {
       // Read access to the extracted map (inside Agentic Toolkit's data dir) instead of the search_map tool
       '--add-dir',
       mapsDir,
+      // the tasks of the Refinement (index and one file each) and the worktrees of the linked ones
+      '--add-dir',
+      material.dir,
+      ...material.worktrees.flatMap((w) => ['--add-dir', w]),
       '--append-system-prompt',
-      systemPromptFor(this.workspaces.get(id).tech).replace(
+      `${systemPromptFor(this.workspaces.get(id).tech).replace(
         'Comece pelo mapa de integrações (search_map)',
         `Comece pelo mapa de integrações: ${path.join(mapsDir, `${id}.json`)} (JSON com items[]: id, kind, title, module, origin, zone, file, line, details) e as anotações em ${path.join(mapsDir, `${id}.annotations.json`)}; use Grep neles`,
-      ),
+      )}\n\n${this.tasks.guide(material)}`,
     ]
     if (s.model) args.push('--model', s.model)
-    const res = await this.runner.run('claude', args, {
-      executable: bin,
-      cwd: root,
-      stdin: `${summary}\n\nPergunta: ${question}`,
-      timeoutMs: 10 * 60_000,
-      protectedRoots: [root],
-    })
+    const session = this.skills.session(this.workspaces.get(id).tech, 'ask')
+    const res = await runClaudeWatchingSkills(
+      this.runner,
+      withSkills(args, session),
+      { executable: bin, cwd: root, stdin: prompt, timeoutMs: 10 * 60_000, protectedRoots: [root] },
+      (skill) => this.skills.record({ workspace: id, feature: 'ask', skill }),
+    )
     let parsed: { result?: string; is_error?: boolean; num_turns?: number } = {}
     try {
       parsed = JSON.parse(res.stdout)
@@ -248,7 +283,8 @@ export class AiService {
       throw new BadRequestException(`Claude Code falhou: ${(res.stderr || res.stdout).slice(0, 400)}`)
     }
     if (parsed.is_error) throw new BadRequestException(`Claude Code: ${parsed.result ?? 'erro'}`)
-    return { answer: parsed.result ?? '', provider: 'claude-code', model: s.model, toolCalls: [], stopReason: `${parsed.num_turns ?? '?'} turnos` }
+    const skills = [...new Set(res.skills)].map((name) => ({ name, title: this.skills.titleOf(name) }))
+    return { answer: parsed.result ?? '', provider: 'claude-code', model: s.model, toolCalls: [], stopReason: `${parsed.num_turns ?? '?'} turnos`, skills }
   }
 
   // ---- OpenAI-compatible endpoints (Ollama, LM Studio…): same read-only tools ------
@@ -260,7 +296,7 @@ export class AiService {
     type Msg = { role: string; content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }
     const messages: Msg[] = [
       { role: 'system', content: systemPromptFor(ctx.tech) },
-      { role: 'user', content: `${ctx.summary}\n\nPergunta: ${question}` },
+      { role: 'user', content: question },
     ]
     const toolCalls: AskResult['toolCalls'] = []
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

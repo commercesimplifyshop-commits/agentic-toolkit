@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, type GitAuth, type Providers, type Workspace } from '../api'
 import { notifySettingsChanged } from '../prereqs'
+import { SkillsSettings } from '../skills'
 import { useShell } from '../store'
 
 export function SettingsPage() {
@@ -11,7 +12,7 @@ export function SettingsPage() {
         <div className="sf-page-icon">⚙</div>
         <div className="sf-page-title">
           <h1>Configurações</h1>
-          <p>O workspace (pasta, projeto, repositório e variáveis) e o provedor de IA. As funcionalidades que dependem de algo daqui trazem um link direto para a seção.</p>
+          <p>O workspace (pasta, projeto, repositório e variáveis), o provedor de IA e as skills do Claude. As funcionalidades que dependem de algo daqui trazem um link direto para a seção.</p>
         </div>
       </div>
       <WorkspaceSettings />
@@ -20,6 +21,9 @@ export function SettingsPage() {
           <AiSettings />
         </div>
         <DangerZone />
+      </div>
+      <div id="secao-skills" className="sf-ws-anchor" style={{ marginTop: 16 }}>
+        <SkillsSettings />
       </div>
     </div>
   )

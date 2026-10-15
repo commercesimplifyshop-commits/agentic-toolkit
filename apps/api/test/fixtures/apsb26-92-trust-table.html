@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Security update available for Adobe Commerce | APSB26-92</title>
+    <link rel="canonical" href="https://www.adobe.com/trust/security/products/magento/apsb26-92.html">
+    <meta name="description" content="Adobe has released a security update for Adobe Commerce and Magento Open Source. This update resolves critical, important, and moderate vulnerabilities. Successful exploitation could result in securi">
+    <meta property="og:title" content="Security update available for Adobe Commerce | APSB26-92">
+    <meta property="og:description" content="Adobe has released a security update for Adobe Commerce and Magento Open Source. This update resolves critical, important, and moderate vulnerabilities. Successful exploitation could result in securi">
+    <meta property="og:image" content="https://www.adobe.com/default-meta-image.png?width=1200&#x26;format=pjpg&#x26;optimize=medium">
+    <meta property="og:image:secure_url" content="https://www.adobe.com/default-meta-image.png?width=1200&#x26;format=pjpg&#x26;optimize=medium">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Security update available for Adobe Commerce | APSB26-92">
+    <meta name="twitter:description" content="Adobe has released a security update for Adobe Commerce and Magento Open Source. This update resolves critical, important, and moderate vulnerabilities. Successful exploitation could result in securi">
+    <meta name="twitter:image" content="https://www.adobe.com/default-meta-image.png?width=1200&#x26;format=pjpg&#x26;optimize=medium">
+    <meta name="manifestnames" content="separate-de, separate-kr, au-abm, kr-freetrial-removal">
+    <meta name="schedule" content=", test | 2026-01-12T13:30:00 | 2026-01-13T13:30:00 | https://main--cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/test-promo/test.json | us |  | , free-trial-brick-rollout | 2026-02-23T08:00:00 | 2030-12-31T00:00:00 | https://main--cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/free-trial-brick-rollout.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , firefly-crosslinking-banner | 2026-05-19T16:00:00 | 2030-05-26T16:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/firefly-crosslinking-banner.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , unlimited-go-big-june | 2026-05-21T14:15:00 | 2026-10-22T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/products/firefly/unlimited-go-big/compare-plans/unlimited-go-big-june.json | us; fr |  | , unlimited-go-big-june-translated | 2026-06-04T14:15:00 | 2026-10-22T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/products/firefly/unlimited-go-big/compare-plans/unlimited-go-big-june-translated.json | ar; br; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_zh; id_id; in; in_hi; my_ms; ph_fil; th_th; tw; vn_vi; ae_ar; at; be_nl; bg; ch_de; ch_it; cz; de; dk; ee; eg_ar; es; fi; gr_el; hu; il_he; it; kw_ar; lt; lu_de; lv; mena_ar; nl; no; pl; pt; qa_ar; ro; sa_ar; se; si; sk; tr; ua; uk |  | , unlimited-go-big-june-translated | 2026-06-04T14:15:00 | 2026-10-12T15:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/products/firefly/unlimited-go-big/compare-plans/unlimited-go-big-june-translated.json | jp |  | , unlimited-go-big-june-sa | 2026-08-31T10:30:00 | 2030-08-26T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/products/firefly/unlimited-go-big/compare-plans/unlimited-go-big-june-sa.json | us |  | , edu-ste-rpp | 2026-06-10T10:30:00 | 2028-06-10T10:30:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/ip-rpp-updates/edu-ste-rpp-offer/edu-ste-rpp.json | id_en; id_id; in_hi; my_en; my_ms; mx; pe; co; ua; vn_en; th_en; ph_en; br; th_th; ph_fil; vn_vi; mena_en; africa; za; ng; mena_ar; la; ec; gt; in |  | , max-cpro-pre-banner | 2026-09-01T16:00:00 | 2026-11-10T14:59:59 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/max-cpro-pre-banner.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , max-cpro-during-banner | 2026-11-10T15:00:00 | 2026-11-12T18:59:59 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/max-cpro-during-banner.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , max-cpro-post-banner | 2026-11-12T19:00:00 | 2026-11-23T16:59:59 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/max-cpro-post-banner.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , max-ff-pre-banner | 2026-09-01T16:00:00 | 2026-11-10T14:59:59 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/max-ff-pre-banner.json | us; ar; br; ca; ca_fr; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; kr; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_fr; be_nl; bg; ch_de; ch_fr; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; ru; sa_en; sa_ar; se; si; sk; tr; ua; uk; za; jp |  | , ravneet-firefly-lingo-test-manifest | 2027-07-07T05:00:00 | 2027-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/draft/ravneet-firefly-lingo-test-manifest.json | us;de | 2026-07-21T08:00:00 | 2026-07-22T00:00:00, separate-de | 2026-09-15T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/footer-de-kr/separate-de.json | us; uk; au; in |  | , separate-kr | 2026-09-15T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/footer-de-kr/separate-kr.json | us; uk; au; in |  | , standard-cct | 2026-08-19T01:30:00 | 2046-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/cct-standard/standard-cct.json | us |  | , israel-abm-suppression | 2026-08-19T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/israel-abm-suppression/israel-abm-suppression.json | us; il_he |  | , gnav-promo-source-ip | 2026-09-22T05:00:00 | 2046-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/ip-rpp-updates/gnav-promo-source-ip.json | us |  | , gnav-promo-source-rpp | 2026-09-22T05:00:00 | 2046-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/ip-rpp-updates/gnav-promo-source-rpp.json | us |  | , geo-restriction-test | 2027-08-20T04:00:00 | 2028-12-30T04:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/draft/geo-restriction-test.json | us; il_he |  | , unlimited-go-big-june-il | 2026-08-31T10:30:00 | 2026-10-22T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/products/firefly/unlimited-go-big/compare-plans/unlimited-go-big-june-il.json | us |  | , apac-cct-promo-q4 | 2026-09-16T04:00:00 | 2026-10-28T04:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-cct-promo-q4/apac-cct-promo-q4.json | us |  | , ravneet-cdt-test | 2026-09-01T05:00:00 | 2026-09-15T05:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/draft/ravneet-cdt-test.json | us | 2026-09-02T07:00:00 | 2026-09-15T05:00:00, kr-freetrial-removal | 2026-09-08T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/legal-au-kr/kr-freetrial-removal.json | us; kr |  | , au-abm | 2026-09-08T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/legal-au-kr/au-abm.json | us; au |  | , tou-subcan-au | 2026-09-15T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/legal-au-kr/tou-subcan-au.json | us; uk; au; in |  | , tou-subcan-kr | 2026-09-15T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/legal-au-kr/tou-subcan-kr.json | us; uk; au; in |  | , captivate-subscription | 2026-09-09T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/captivate-subscription.json | us, ar, cl, co, cr, ec, gt, in, kr, tr, tw, pe, am, az, ge, md, kz, kg, tj, tm, uz, ua |  | , rh-fm-subscription | 2026-09-09T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/rh-fm-subscription.json | us, ar, cl, co, cr, ec, gt, in, kr, tr, tw, pe, am, az, ge, md, kz, kg, tj, tm, uz, ua |  | , elements-cis-en-without-commerce | 2026-09-09T05:00:00 | 2040-07-22T17:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/elements-cis-en-without-commerce.json | us, am, az, ge, md, kz, kg, tj, tm, uz, ua |  | , apac-cct-promo-q4-kr | 2026-09-16T04:00:00 | 2026-10-28T04:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-cct-promo-q4/apac-cct-promo-q4-kr.json | us |  | , apac-cct-promo-q4-translated | 2026-09-16T04:00:00 | 2026-10-28T04:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-cct-promo-q4/apac-cct-promo-q4-translated.json | kr; hk_zh; tw; au; sg; nz; hk_en |  | , apac-cct-promo-q4-au | 2026-09-16T04:00:00 | 2026-10-28T04:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-cct-promo-q4/apac-cct-promo-q4-au.json | us |  | , black-friday | 2026-11-13T13:30:00 | 2026-12-07T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/black-friday.json | za; us; ar; br; ca; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_nl; bg; ch_de; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; sa_en; sa_ar; se; si; sk; tr; ua; uk; kr |  | , apac-q4-fy26-singles-day-promo | 2026-11-02T04:00:00 | 2026-11-13T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-q4-fy26-singles-day-promo/apac-q4-fy26-singles-day-promo.json | us |  | , apac-q4-fy26-singles-day-promo-translated | 2026-11-02T04:00:00 | 2026-11-13T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-q4-fy26-singles-day-promo/apac-q4-fy26-singles-day-promo-translated.json | kr; hk_zh; tw; au; in; ph_fil; my_ms; id_id |  | , apac-q4-fy26-singles-day-promo-in | 2026-11-02T04:00:00 | 2026-11-13T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/apac/apac-q4-fy26-singles-day-promo/apac-q4-fy26-singles-day-promo-in.json | in |  | , ff-black-friday | 2026-11-10T13:30:00 | 2026-12-07T14:00:00 | https://main--da-cc--adobecom.aem.page/cc-shared/fragments/promos/2026/global/ff-black-friday.json | za; us; ar; br; ca; cl; co; cr; ec; gt; la; mx; pe; pr; au; hk_en; hk_zh; id_en; id_id; in; in_hi; my_en; my_ms; nz; ph_en; ph_fil; sg; th_en; th_th; tw; vn_en; vn_vi;ae_en; ae_ar; africa; at; be_en; be_nl; bg; ch_de; ch_it; cz; de; dk; ee; eg_ar; eg_en; es; fi; fr; gr_el; gr_en; hu; ie; il_en; il_he; it; kw_ar; kw_en; lt; lu_de; lu_en; lu_fr; lv; mena_ar; mena_en; ng; nl; no; pl; pt; qa_ar; qa_en; ro; sa_en; sa_ar; se; si; sk; tr; ua; uk; kr |  |">
+    <meta name="hreflinksuseragents" content="Googlebot, Tokowaka, ChatGPT-User, Google-InspectionTool">
+    <meta name="mobile-gnav-v2" content="on">
+    <meta name="footer" content="global-footer">
+    <meta name="header" content="global-navigation">
+    <meta name="universal-nav" content="profile, appswitcher, notifications, cart">
+    <meta name="adobe-home-redirect" content="on">
+    <meta name="m7-pa-code" content="ccsn_direct_individual">
+    <meta name="m7-checkout-client-id" content="acom_biz">
+    <meta name="ims-guest-token" content="on">
+    <meta name="mas-ff-3in1" content="on">
+    <meta name="mas-ff-defaults" content="on">
+    <meta name="serp-content-type" content="security-bulletin">
+    <meta name="gnav-source" content="https://main--cc--adobecom.aem.page/cc-shared/gnav/localnav-trust">
+    <meta name="jarvis-chat" content="desktop">
+    <meta name="georouting" content="off">
+    <meta name="langfirst" content="on">
+    <meta name="mas-geo-detection" content="on">
+    <meta name="languagebanner" content="on">
+    <meta name="mas-ims-login" content="on">
+    <meta name="publishdate" content="2026-08-11">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="head-loaded" content="false">
+    <style>
+  body {
+    display: none;
+  }
+  .reading-width {
+    max-width: 800px;
+    margin: auto;
+    padding: 20px;
+  }
+
+  .reading-width-footer-tag {
+    max-width: 800px;
+    margin: -20px auto;
+    padding: 0 20px 20px;
+  }
+
+  .reading-width-footer-tag > .content {
+    max-width: var(--grid-container-width);
+    margin: 0 auto;
+  }
+  /* TODO: Remove once style is handled in merch */
+  :root:has(meta[name='theme'][content='max25']) {
+    @media screen and (max-width: 767px) {
+      .two-merch-cards.mini-compare-chart,
+      .three-merch-cards.mini-compare-chart,
+      .four-merch-cards.mini-compare-chart {
+        grid-template-columns: 310px;
+      }
+    }
+
+    @media screen and (min-width: 768px) {
+      .three-merch-cards.mini-compare-chart,
+      .four-merch-cards.mini-compare-chart {
+        grid-template-columns: repeat(2, 310px);
+      }
+    }
+
+    @media screen and (min-width: 1200px) {
+      .three-merch-cards.mini-compare-chart,
+      .four-merch-cards.mini-compare-chart {
+        grid-template-columns: repeat(3, 310px);
+      }
+    }
+
+    @media screen and (min-width: 1600px) {
+      .four-merch-cards.mini-compare-chart {
+        grid-template-columns: repeat(4, 336px);
+      }
+    }
+  }
+</style>
+    <script src="/creativecloud/scripts/fallback.js" nomodule></script>
+    <script type="module">
+  const userAgentMeta = document.querySelector('meta[name="hreflinksuseragents"]');
+  const allowedAgents = userAgentMeta && userAgentMeta.content.split(',');
+  const userAgentString = window.navigator.userAgent;
+  const isAllowedAgent = allowedAgents && allowedAgents.some((agent) => userAgentString.includes(agent.trim()));
+
+  const flagMeta = document.querySelector('meta[name="head-loaded"]');
+  const headAlreadyLoaded = flagMeta.content === 'true';
+  const LOCALES = ['ae_ar', 'ae_en', 'africa', 'ar', 'at', 'au', 'be_en', 'be_fr', 'be_nl', 'bg', 'br', 'ca_fr', 'ca', 'ch_de', 'ch_fr', 'ch_it', 'cl', 'cn', 'co', 'cr', 'cy_en', 'cz', 'de', 'dk', 'ec', 'ee', 'eg_ar', 'eg_en', 'el', 'es', 'fi', 'fr', 'gr_el', 'gr_en', 'gt', 'hk_en', 'hk_zh', 'hu', 'id_en', 'id_id', 'ie', 'il_en', 'il_he', 'in_hi', 'in', 'it', 'jp', 'kr', 'kw_ar', 'kw_en', 'la', 'lt', 'lu_de', 'lu_en', 'lu_fr', 'lv', 'mena_ar', 'mena_en', 'mt', 'mx', 'my_en', 'my_ms', 'ng', 'nl', 'no', 'nz', 'pe', 'ph_en', 'ph_fil', 'pl', 'pr', 'pt', 'qa_ar', 'qa_en', 'ro', 'ru', 'sa_ar', 'sa_en', 'se', 'sg', 'si', 'sk', 'th_en', 'th_th', 'tr', 'tw', 'ua', 'uk', 'vn_en', 'vn_vi', 'za'];
+
+  (() => {
+    function buildLink(language, url) {
+      const link = document.createElement('link');
+      link.setAttribute('rel', 'alternate');
+      link.setAttribute('hreflang', language);
+      link.setAttribute('href', url);
+      return link;
+    }
+
+    async function fetchAndParseSitemap() {
+      const sitemapOrigin = 'https://www.adobe.com';
+      const { origin, pathname } = window.location;
+
+      let sitemapPath = '/cc-shared/assets/sitemap.xml';
+      const localeMatch = LOCALES.find(locale => pathname.startsWith(`/${locale}/`));
+
+      if (localeMatch) {
+        sitemapPath = `/${localeMatch}/cc-shared/assets/sitemap.xml`;
+      }
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        let response;
+        try {
+          response = await fetch(`${origin}${sitemapPath}`, { signal: controller.signal });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        if (!response.ok) {
+          console.warn('Failed to fetch sitemap:', response.status);
+          return;
+        }
+        
+        const xmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const parseError = xmlDoc.querySelector('parsererror');
+        if (parseError) {
+          return;
+        }
+        
+        const urlElements = xmlDoc.querySelectorAll('url');
+        let currentUrlElement = null;
+        const correctedPath = pathname.endsWith('.html') ? pathname : `${pathname}.html`;
+        const isLocalRoot = localeMatch && `${sitemapOrigin}/${localeMatch}/` === `${sitemapOrigin}${pathname}`;
+        const rootPage = isLocalRoot ? `${sitemapOrigin}/${localeMatch}/` : `${sitemapOrigin}/`; 
+        const currentPageUrl = pathname !== '/' && pathname !== `/${localeMatch}/` ? `${sitemapOrigin}${correctedPath}` : `${rootPage}`;
+
+        for (const urlElement of urlElements) {
+          const loc = urlElement.querySelector('loc')?.textContent;
+          if (loc === currentPageUrl || loc === currentPageUrl.replace(/\/$/, '')) {
+            currentUrlElement = urlElement;
+            break;
+          }
+        }
+        
+        if (!currentUrlElement) {
+          console.warn('Current page not found in sitemap');
+          return;
+        }
+        
+        const alternateLinks = currentUrlElement.querySelectorAll('link[rel="alternate"]');
+        const linkElements = [];
+
+        alternateLinks.forEach(altLink => {
+          const hreflang = altLink.getAttribute('hreflang');
+          const href = altLink.getAttribute('href');
+          
+          if (hreflang && href) {
+            linkElements.push(buildLink(hreflang, href));
+          }
+        });
+        
+        const titleElement = document.head.querySelector('title');
+        if (linkElements.length > 0 && titleElement) {
+          titleElement.after(...linkElements);
+        }
+      } catch (error) {
+        console.error('Error fetching or parsing sitemap:', error);
+      }
+    } 
+
+    if (isAllowedAgent && !headAlreadyLoaded) {
+      fetchAndParseSitemap();
+    }
+  })();
+
+  import { scriptInit } from '/creativecloud/scripts/utils.js';
+  scriptInit();
+
+  flagMeta.content = 'true';
+</script>
+    <link rel="icon" href="data:,">
+  </head>
+  <body>
+    <header></header>
+    <main>
+      <div>
+        <div class="text dark xl-heading s-spacing">
+          <div>
+            <div><strong>#202020</strong></div>
+          </div>
+          <div>
+            <div>
+              <h1 id="adobe-security-bulletin">Adobe Security Bulletin</h1>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text s-heading xl-spacing-top xxs-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h2 id="last-updated-on-aug-18-2026">Last updated on Aug 18, 2026</h2>
+              <p>Security update available for Adobe Commerce | APSB26-92</p>
+            </div>
+          </div>
+        </div>
+        <div class="table">
+          <div>
+            <div><strong>Bulletin ID</strong></div>
+            <div><strong>Date published</strong></div>
+            <div><strong>Priority</strong></div>
+          </div>
+          <div>
+            <div>APSB26-92</div>
+            <div>August 11, 2026</div>
+            <div>2</div>
+          </div>
+        </div>
+        <div class="section-metadata">
+          <div>
+            <div>style</div>
+            <div>grid width 12</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text xl-heading xxl-spacing-top xl-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h3 id="summary">Summary</h3>
+              <p>Adobe has released a security update for Adobe Commerce and Magento Open Source. This update resolves <a href="/trust/security/bulletins-and-advisories?tab=security-2#_blank">critical</a>, <a href="/trust/security/bulletins-and-advisories?tab=security-2#_blank">important</a>, and <a href="/trust/security/bulletins-and-advisories?tab=security-2#_blank">moderate</a> vulnerabilities. Successful exploitation could result in security feature bypass, arbitrary code execution, and privilege escalation.</p>
+              <p>Adobe is not aware of any exploits in the wild for any of the issues addressed in these updates.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text xl-heading xl-spacing-top xxs-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h3 id="affected-versions">Affected Versions</h3>
+            </div>
+          </div>
+        </div>
+        <div class="table">
+          <div>
+            <div><strong>Product</strong></div>
+            <div><strong>Version</strong></div>
+            <div><strong>Platform</strong></div>
+          </div>
+          <div>
+            <div>Adobe Commerce</div>
+            <div>
+              <p>2.4.9-2026-jul and earlier</p>
+              <p>2.4.8-2026-jul and earlier</p>
+              <p>2.4.7-2026-jul and earlier</p>
+              <p>2.4.6-2026-jul and earlier</p>
+              <p>2.4.5-2026-jul and earlier</p>
+              <p>2.4.4-2026-jul and earlier</p>
+            </div>
+            <div>All</div>
+          </div>
+          <div>
+            <div>Adobe Commerce B2B</div>
+            <div>
+              <p>1.5.3-2026-jul and earlier</p>
+              <p>1.5.2-2026-jul and earlier</p>
+              <p>1.4.2-2026-jul and earlier</p>
+              <p>1.3.4-2026-jul and earlier</p>
+              <p>1.3.3-2026-jul and earlier</p>
+            </div>
+            <div>All</div>
+          </div>
+          <div>
+            <div>Magento Open Source</div>
+            <div>
+              <p>2.4.9-2026-jul and earlier</p>
+              <p>2.4.8-2026-jul and earlier</p>
+              <p>2.4.7-2026-jul and earlier</p>
+              <p>2.4.6-2026-jul and earlier</p>
+            </div>
+            <div>All</div>
+          </div>
+        </div>
+        <div class="section-metadata">
+          <div>
+            <div>style</div>
+            <div>grid width 12</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text xl-heading xxl-spacing-top xxs-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h3 id="solution">Solution</h3>
+              <p>Adobe categorizes these updates with the following <a href="https://helpx.adobe.com/trust/security/bulletins-and-advisories?tab=security-2#_blank">priority ratings</a> and recommends users update their installation to the newest version.</p>
+              <p>Adobe categorizes these updates with the following <a href="https://helpx.adobe.com/trust/security/bulletins-and-advisories?tab=security-2#_blank">priority ratings</a> and recommends users update their installation to the newest version.</p>
+            </div>
+          </div>
+        </div>
+        <div class="table left top">
+          <div>
+            <div><strong>Product</strong></div>
+            <div><strong>Updated version</strong></div>
+            <div><strong>Platform</strong></div>
+            <div><strong>Priority rating</strong></div>
+            <div><strong>Installation instructions</strong></div>
+          </div>
+          <div>
+            <div>Adobe Commerce</div>
+            <div>2.4.9-2026-aug<br>2.4.8-2026-aug<br>2.4.7-2026-aug<br>2.4.6-2026-aug<br>2.4.5-2026-aug<br>2.4.4-2026-aug</div>
+            <div>All</div>
+            <div>2</div>
+            <div><a href="https://experienceleague.adobe.com/en/docs/experience-cloud-kcs/kbarticles/ka-40380">Release Notes for August 2026 security update APSB26-92</a></div>
+          </div>
+          <div>
+            <div>Adobe Commerce B2B</div>
+            <div>1.5.3-2026-aug<br>1.5.2-2026-aug<br>1.4.2-2026-aug<br>1.3.4-2026-aug<br>1.3.3-2026-aug</div>
+            <div>All</div>
+            <div>2</div>
+            <div><a href="https://experienceleague.adobe.com/en/docs/experience-cloud-kcs/kbarticles/ka-40380">Release Notes for August 2026 security update APSB26-92</a></div>
+          </div>
+          <div>
+            <div>Magento Open Source</div>
+            <div>2.4.9-2026-aug<br>2.4.8-2026-aug<br>2.4.7-2026-aug<br>2.4.6-2026-aug</div>
+            <div>All</div>
+            <div>2</div>
+            <div><a href="https://experienceleague.adobe.com/en/docs/experience-cloud-kcs/kbarticles/ka-40380">Release Notes for August 2026 security update APSB26-92</a></div>
+          </div>
+        </div>
+        <div class="section-metadata">
+          <div>
+            <div>style</div>
+            <div>grid width 12</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text xl-heading xl-spacing-top xxs-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h3 id="vulnerability-details">Vulnerability Details</h3>
+            </div>
+          </div>
+        </div>
+        <div class="table sticky left top">
+          <div>
+            <div><strong>Vulnerability category</strong></div>
+            <div><strong>Vulnerability impact</strong></div>
+            <div><strong>Severity</strong></div>
+            <div><strong>Authentication required to exploit?</strong></div>
+            <div><strong>Exploit requires admin privileges?</strong></div>
+            <div><strong>CVSS base score</strong></div>
+            <div><strong>CVSS vector</strong></div>
+            <div><strong>CVE number(s)</strong></div>
+            <div><strong>Notes</strong></div>
+          </div>
+          <div>
+            <div>Incorrect Authorization (<a href="https://cwe.mitre.org/data/definitions/863.html">CWE-863</a>)</div>
+            <div>Privilege escalation</div>
+            <div>Critical</div>
+            <div>No</div>
+            <div>No</div>
+            <div>9.1</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N</div>
+            <div>CVE-2026-71362</div>
+            <div></div>
+          </div>
+          <div>
+            <div>Cross-site Scripting (Stored XSS) (<a href="https://cwe.mitre.org/data/definitions/79.html">CWE-79</a>)</div>
+            <div>Arbitrary code execution</div>
+            <div>Critical</div>
+            <div>Yes</div>
+            <div>Yes</div>
+            <div>7.7</div>
+            <div>CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:C/C:H/I:H/A:N</div>
+            <div>CVE-2026-48414</div>
+            <div></div>
+          </div>
+          <div>
+            <div>Cross-site Scripting (Stored XSS) (<a href="https://cwe.mitre.org/data/definitions/79.html">CWE-79</a>)</div>
+            <div>Arbitrary code execution</div>
+            <div>Critical</div>
+            <div>Yes</div>
+            <div>No</div>
+            <div>8.7</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:C/C:H/I:H/A:N</div>
+            <div>CVE-2026-48413</div>
+            <div></div>
+          </div>
+          <div>
+            <div>Incorrect Authorization (<a href="https://cwe.mitre.org/data/definitions/863.html">CWE-863</a>)</div>
+            <div>Security feature bypass</div>
+            <div>Critical</div>
+            <div>Yes</div>
+            <div>No</div>
+            <div>7.6</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:H/A:L</div>
+            <div>CVE-2026-48415</div>
+            <div>B2B</div>
+          </div>
+          <div>
+            <div>Incorrect Authorization (<a href="https://cwe.mitre.org/data/definitions/863.html">CWE-863</a>)</div>
+            <div>Security feature bypass</div>
+            <div>Critical</div>
+            <div>No</div>
+            <div>No</div>
+            <div>7.5</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N</div>
+            <div>CVE-2026-48416</div>
+            <div></div>
+          </div>
+          <div>
+            <div>Incorrect Authorization (<a href="https://cwe.mitre.org/data/definitions/863.html">CWE-863</a>)</div>
+            <div>Security feature bypass</div>
+            <div>Important</div>
+            <div>Yes</div>
+            <div>Yes</div>
+            <div>6.8</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:H</div>
+            <div>CVE-2026-48411</div>
+            <div></div>
+          </div>
+          <div>
+            <div>Incorrect Authorization (<a href="https://cwe.mitre.org/data/definitions/863.html">CWE-863</a>)</div>
+            <div>Privilege escalation</div>
+            <div>Moderate</div>
+            <div>Yes</div>
+            <div>Yes</div>
+            <div>2.7</div>
+            <div>CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:L/A:N</div>
+            <div>CVE-2026-48412</div>
+            <div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="editorial-card static-links-copy s-lockup l-rounded-corners">
+          <div>
+            <div></div>
+          </div>
+          <div>
+            <div>
+              <h3 id="alert-circlenote"><span class="icon icon-alert-circle"></span>Note</h3>
+              <p>Effective August 11, 2026, Adobe may assign a single CVE identifier to internally discovered vulnerabilities with the same severity rating and CWE category when a release includes systemic fixes.</p>
+            </div>
+          </div>
+        </div>
+        <div class="editorial-card static-links-copy s-lockup l-rounded-corners">
+          <div>
+            <div></div>
+          </div>
+          <div>
+            <div>
+              <h3 id="alert-circlenote-1"><span class="icon icon-alert-circle"></span>Note</h3>
+              <p>Authentication required to exploit: The vulnerability is (or is not) exploitable without credentials.</p>
+              <p>Exploit requires admin privileges: The vulnerability is (or is not) only exploitable by an attacker with administrative privileges.</p>
+            </div>
+          </div>
+        </div>
+        <div class="section-metadata">
+          <div>
+            <div>style</div>
+            <div>xl spacing, one up, grid width 12, static-links, xxl-spacing-top</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text xl-heading xl-spacing-top m-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <h3 id="acknowledgements">Acknowledgements</h3>
+              <p>Adobe would like to thank the following researchers for reporting these issues and working with Adobe to help protect our customers:</p>
+            </div>
+          </div>
+        </div>
+        <div class="text s-body l-spacing-bottom max-width-12-desktop">
+          <div>
+            <div>
+              <ul>
+                <li>wohlie — CVE-2026-48416, CVE-2026-48415, CVE-2026-48414, CVE-2026-48413</li>
+                <li>Akash Hamal (akashhamal0x01) — CVE-2026-48411</li>
+                <li>Ram Anuj (manual_mint) — CVE-2026-48412</li>
+                <li>0x0.eth (0x0doteth) — CVE-2026-71362</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="text s-body static-links max-width-12-desktop xl-spacing-bottom">
+          <div>
+            <div>
+              <p><strong>NOTE:</strong> Adobe has a public bug bounty program with HackerOne. If you are interested in working with Adobe as an external security researcher, please check out <a href="https://app.intigriti.com/programs/adobe/adobepublic/detail">https://app.intigriti.com/programs/adobe/adobepublic/detail</a>.</p>
+              <hr>
+              <p>For more information, visit <a href="https://www.adobe.com/trust/security/bug-bounty.html">https://www.adobe.com/trust/security/bug-bounty.html</a>, or email PSIRT@adobe.com.</p>
+            </div>
+          </div>
+        </div>
+        <div class="breadcrumbs">
+          <div>
+            <div>
+              <ul>
+                <li><a href="https://helpx.adobe.com/">Home</a></li>
+                <li><a href="https://www.adobe.com/trust/security/bug-bounty.html">Security</a></li>
+                <li>APSB26-92</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer></footer>
+  </body>
+</html>

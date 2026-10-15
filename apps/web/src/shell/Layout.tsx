@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { FEATURE_NEEDS, PrereqNotice } from './prereqs'
+import { FEATURE_NEEDS, featureOf, PrereqNotice } from './prereqs'
 import { IdeLayer } from './ide/IdeLayer'
 import { initials, useShell } from './store'
 
@@ -104,7 +104,10 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
   },
   {
     title: 'Instância',
-    items: [{ to: 'sfcc/instance', label: 'Perfil da instância', icon: '☁' }],
+    items: [
+      { to: 'sfcc/instance', label: 'Perfil da instância', icon: '☁' },
+      { to: 'sfcc/upload', label: 'Upload para a instância', icon: '⇪' },
+    ],
   },
 ]
 
@@ -239,9 +242,9 @@ export function Layout() {
           <span className="sep">›</span>
           <b>{title}</b>
         </div>
-        {ws?.status === 'analyzed' && FEATURE_NEEDS[sub.split('/')[0]] && (
+        {ws?.status === 'analyzed' && FEATURE_NEEDS[featureOf(sub)] && (
           <div className="sf-prereq-strip">
-            <PrereqNotice workspaceId={id} feature={sub.split('/')[0]} />
+            <PrereqNotice workspaceId={id} feature={featureOf(sub)} />
           </div>
         )}
         <div className="sf-content" style={fullBleed ? { overflow: 'hidden' } : undefined}>

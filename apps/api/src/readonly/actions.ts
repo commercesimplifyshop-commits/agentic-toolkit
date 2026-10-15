@@ -383,6 +383,49 @@ export const ACTIONS = {
     description: 'Visão geral de um projeto Salesforce B2C (cartuchos, controllers, templates, jobs, integrações e sites), lida do código, sem acessar a instância',
     validate: requireWorkspace,
   },
+  'skills.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Lista as skills do Claude, as feature flags e os usos recentes, ou lê o SKILL.md de uma skill',
+    validate: (ctx) => {
+      const id = ctx.req.params.skillId
+      if (id !== undefined && !/^[a-z0-9-]{2,64}$/.test(String(id))) fail('Skill inválida', 'input.skill-id')
+    },
+  },
+  'skills.write': {
+    kind: 'data-write',
+    methods: ['PUT'],
+    description: 'Liga ou desliga as skills do Claude (todas ou cada uma). Grava no diretório de dados do Agentic Toolkit',
+    validate: (ctx) => {
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.enabled !== undefined && typeof b.enabled !== 'boolean') fail('enabled deve ser verdadeiro ou falso', 'input.skills-enabled')
+      if (b.skills !== undefined && (typeof b.skills !== 'object' || b.skills === null || Object.values(b.skills).some((v) => typeof v !== 'boolean'))) fail('Feature flags inválidas', 'input.skills-flags')
+    },
+  },
+  'sfcc.upload.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Mostra as ferramentas de upload do projeto Salesforce B2C, o dw.json (sem usuário nem senha), os cartuchos e o upload em andamento',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const card = ctx.req.query.card
+      if (card !== undefined && card !== '' && !/^[a-f0-9]{10}$/.test(String(card))) fail('Card inválido', 'input.card-id')
+    },
+  },
+  'sfcc.upload.run': {
+    kind: 'external',
+    methods: ['POST'],
+    description: 'Envia cartuchos para a instância Salesforce B2C do dw.json (code version) com o dwupload do projeto, de uma vez ou em upload automático; ou para o upload',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.cardId !== undefined && b.cardId !== null && b.cardId !== '' && !/^[a-f0-9]{10}$/.test(String(b.cardId))) fail('Card inválido', 'input.card-id')
+      if (b.mode !== undefined && !['upload', 'watch'].includes(String(b.mode))) fail('Modo de upload inválido', 'input.upload-mode')
+      if (b.cartridges !== undefined && (!Array.isArray(b.cartridges) || b.cartridges.length > 30 || !(b.cartridges as unknown[]).every((c) => /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}$/.test(String(c))))) {
+        fail('Cartuchos inválidos', 'input.upload-cartridges')
+      }
+    },
+  },
   'links.read': {
     kind: 'read',
     methods: ['GET'],
@@ -650,11 +693,21 @@ export const ACTIONS = {
   'ai.ask': {
     kind: 'read',
     methods: ['POST'],
-    description: 'Pergunta à IA sobre a instalação; a IA só recebe ferramentas de leitura',
+    description: 'Pergunta à IA sobre a instalação, com as tarefas do Refinamento vinculadas como contexto; a IA só recebe ferramentas de leitura (também no worktree das tarefas vinculadas)',
     validate: (ctx) => {
       requireWorkspace(ctx)
       const q = String(ctx.req.body?.question ?? '')
       if (!q.trim() || q.length > 8000) fail('Pergunta vazia ou longa demais', 'input.question')
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.cards !== undefined && (!Array.isArray(b.cards) || b.cards.length > 5 || !(b.cards as unknown[]).every((c) => /^[a-f0-9]{10}$/.test(String(c))))) fail('Até 5 tarefas vinculadas', 'input.ask-cards')
+      if (
+        b.history !== undefined &&
+        (!Array.isArray(b.history) ||
+          b.history.length > 20 ||
+          !(b.history as unknown[]).every((t) => typeof (t as Record<string, unknown>)?.question === 'string' && typeof (t as Record<string, unknown>)?.answer === 'string' && JSON.stringify(t).length < 40_000))
+      ) {
+        fail('Histórico inválido', 'input.ask-history')
+      }
     },
   },
 } satisfies Record<string, ActionDef>

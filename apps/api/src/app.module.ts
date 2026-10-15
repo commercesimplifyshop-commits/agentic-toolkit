@@ -19,6 +19,10 @@ import { OpenSpecAuthoringController } from './openspec/openspec-authoring.contr
 import { OpenSpecAuthoringService } from './openspec/openspec-authoring.service'
 import { SfccController } from './techs/sfcc/sfcc.controller'
 import { SfccService } from './techs/sfcc/sfcc.service'
+import { SfccUploadService } from './techs/sfcc/upload.service'
+import { SkillsController } from './skills/skills.controller'
+import { SkillsService } from './skills/skills.service'
+import { TaskContextService } from './refine/task-context.service'
 import { TechsController } from './techs/techs.controller'
 import { GitOpsController } from './gitops/gitops.controller'
 import { GitOpsService } from './gitops/gitops.service'
@@ -55,7 +59,7 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, RefineController, WorkspaceSettingsController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, RefineController, WorkspaceSettingsController, SkillsController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
@@ -85,6 +89,9 @@ import { ZipService } from './workspaces/zip.service'
     LinksService,
     LinksAssistService,
     SfccService,
+    SfccUploadService,
+    SkillsService,
+    TaskContextService,
     NewsService,
     SecurityBulletinTopic,
     GitOpsService,

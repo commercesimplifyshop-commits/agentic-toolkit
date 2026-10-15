@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { skillsInEvent, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -104,6 +106,7 @@ export class DocsService {
     private readonly runner: CommandRunner,
     private readonly ai: AiService,
     private readonly audit: AuditService,
+    private readonly skills: SkillsService,
   ) {}
 
   // ---- storage (Agentic Toolkit data dir only) ---------------------------------------------------
@@ -275,7 +278,7 @@ export class DocsService {
     let failure = ''
     // Tool paths may be relative to the Magento root (Claude's cwd), not to this process
     const rel = (p: string) => path.relative(root, path.resolve(root, p)).replace(/\\/g, '/') || '.'
-    const res = await this.runner.run('claude', args, {
+    const res = await this.runner.run('claude', withSkills(args, this.skills.session(ws.tech, 'docs')), {
       executable: bin,
       cwd: root,
       stdin: ask,
@@ -290,6 +293,7 @@ export class DocsService {
           return
         }
         if (ev.type === 'assistant') {
+          for (const skill of skillsInEvent(ev as Record<string, unknown>)) this.jobs.log(job, `⚡ Skill: ${this.skills.record({ workspace: id, feature: 'docs', skill }).title}`)
           for (const c of ev.message?.content ?? []) {
             if (c.type !== 'tool_use') continue
             const input = c.input ?? {}

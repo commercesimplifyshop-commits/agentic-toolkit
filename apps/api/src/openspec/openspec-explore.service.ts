@@ -6,6 +6,9 @@ import { AiService } from '../ai/ai.service'
 import { assertWritableTarget } from '../readonly/path-guard'
 import { CLAUDE_DENIED_TOOLS, CommandRunner } from '../readonly/command-runner.service'
 import { WorkspacesService } from '../workspaces/workspaces.service'
+import { runClaudeWatchingSkills, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
+import type { SkillFeature } from '../skills/catalog'
 import { OpenSpecService } from './openspec.service'
 
 interface Turn {
@@ -111,6 +114,7 @@ export class OpenSpecExploreService {
     private readonly ai: AiService,
     private readonly runner: CommandRunner,
     private readonly openspec: OpenSpecService,
+    private readonly skills: SkillsService,
   ) {}
 
   private dir(id: string) {
@@ -221,7 +225,7 @@ export class OpenSpecExploreService {
   }
 
   /** One read-only Claude Code call; the attachments folder is readable so it can open the images */
-  async ask(id: string, system: string, prompt: string): Promise<string> {
+  async ask(id: string, system: string, prompt: string, feature: SkillFeature = 'openspec'): Promise<{ text: string; skills: string[] }> {
     const bin = this.ai.claudeBinary()
     if (!bin) throw new BadRequestException('Claude Code não encontrado nesta máquina')
     const root = this.workspaces.rootOf(id)
@@ -244,7 +248,10 @@ export class OpenSpecExploreService {
       '--append-system-prompt',
       system,
     ]
-    const res = await this.runner.run('claude', args, { executable: bin, cwd: root, stdin: prompt, timeoutMs: 8 * 60_000, protectedRoots: [root] })
+    const session = this.skills.session(this.workspaces.get(id).tech, feature)
+    const res = await runClaudeWatchingSkills(this.runner, withSkills(args, session), { executable: bin, cwd: root, stdin: prompt, timeoutMs: 8 * 60_000, protectedRoots: [root] }, (skill) =>
+      this.skills.record({ workspace: id, feature, skill }),
+    )
     let parsed: { result?: string; is_error?: boolean } = {}
     try {
       parsed = JSON.parse(res.stdout)
@@ -252,7 +259,7 @@ export class OpenSpecExploreService {
       throw new BadRequestException(`Claude Code falhou: ${(res.stderr || res.stdout).slice(0, 300)}`)
     }
     if (parsed.is_error) throw new BadRequestException(`Claude Code: ${(parsed.result ?? 'erro').slice(0, 300)}`)
-    return parsed.result ?? ''
+    return { text: parsed.result ?? '', skills: [...new Set(res.skills)] }
   }
 
   private transcriptOf(turns: Turn[]) {
@@ -294,7 +301,7 @@ export class OpenSpecExploreService {
     ]
       .filter(Boolean)
       .join('\n\n')
-    const text = await this.ask(id, system, prompt)
+    const { text } = await this.ask(id, system, prompt)
     const raw = parseJsonReply(text)
     if (!raw) throw new BadRequestException('O Claude não devolveu a proposta em um formato legível. Tente de novo.')
     return this.sanitizePackage(raw, existing, taken)
@@ -401,8 +408,12 @@ export class OpenSpecExploreService {
       .filter(Boolean)
       .join('\n\n')
 
-    const reply = (await this.ask(id, STANCE, prompt)).trim() || '(sem resposta)'
-    session.messages.push({ role: 'user', content: message, at: now, ...(attachments.length ? { attachments } : {}) }, { role: 'assistant', content: reply, at: new Date().toISOString() })
+    const answer = await this.ask(id, STANCE, prompt)
+    const reply = answer.text.trim() || '(sem resposta)'
+    session.messages.push(
+      { role: 'user', content: message, at: now, ...(attachments.length ? { attachments } : {}) },
+      { role: 'assistant', content: reply, at: new Date().toISOString(), ...(answer.skills.length ? { skills: answer.skills } : {}) },
+    )
     session.updatedAt = new Date().toISOString()
     this.save(id, session)
     return session

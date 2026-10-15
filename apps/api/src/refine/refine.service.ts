@@ -6,20 +6,36 @@ import { AiService } from '../ai/ai.service'
 import { GitOpsService } from '../gitops/gitops.service'
 import { OpenSpecExploreService, parseJsonReply } from '../openspec/openspec-explore.service'
 import { AuditService } from '../readonly/audit.service'
-import { CommandRunner } from '../readonly/command-runner.service'
+import { CLAUDE_SECRET_FILES, CommandRunner } from '../readonly/command-runner.service'
 import { WorkspaceEnvService } from '../settings/workspace-env.service'
+import { DOC_HOSTS } from '../techs/sfcc/knowledge'
+import { SfccService } from '../techs/sfcc/sfcc.service'
 import { WorkspacesService } from '../workspaces/workspaces.service'
+import { refineProfile } from './profiles'
+import { skillsInEvent, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
 
 export interface Turn {
   role: 'user' | 'assistant'
   content: string
   at: string
   attachments?: { id: string; name: string }[]
+  /** Skills Claude loaded for this answer */
+  skills?: string[]
 }
 
 export interface Split {
   title: string
   scope: string
+}
+
+/** One concept of the "Para quem vem do Adobe" guide */
+export interface LearningItem {
+  topic: string
+  adobe: string
+  sfcc: string
+  why: string
+  docs: { title: string; url: string }[]
 }
 
 /** The refined card: what goes into Jira or Azure DevOps, and what Claude follows to develop */
@@ -33,6 +49,12 @@ export interface Refinement {
   plan: string[]
   acceptance: string[]
   observations: string[]
+  /** Salesforce B2C: what is done in the Business Manager or imported, outside the code */
+  platformSteps?: string[]
+  /** Salesforce B2C: the guide for engineers who come from Adobe Commerce */
+  learning?: LearningItem[]
+  /** Skills Claude loaded to write the card */
+  skills?: string[]
   complexity: { level: 'baixa' | 'media' | 'alta'; reasoning: string; recommendSplit: boolean; splits: Split[] }
   generatedAt: string
 }
@@ -52,6 +74,8 @@ export interface DevState {
   summary?: string
   error?: string
   costUsd?: number
+  /** Skills Claude loaded during the development */
+  skills?: string[]
 }
 
 export type CardStatus = 'refinando' | 'refinado' | 'dividido' | 'pronto' | 'desenvolvendo' | 'concluido' | 'falhou' | 'interrompido'
@@ -78,31 +102,8 @@ const MAX_MESSAGE = 20_000
 const MAX_TURNS_IN_PROMPT = 14
 const DEV_TOOLS = 'Read,Grep,Glob,Edit,MultiEdit,Write,Bash,TodoWrite'
 const DEV_TIMEOUT_MS = 4 * 60 * 60_000
-
-/** The refinement conversation: Claude reads the code and helps turn a raw demand into a clear task. It never writes. */
-const REFINE_STANCE = [
-  'Você ajuda um engenheiro a refinar uma demanda de desenvolvimento deste projeto. A demanda costuma chegar crua: texto de ticket, prints, pedido do cliente.',
-  '1. Resuma o que entendeu e o objetivo de negócio.',
-  '2. Investigue o código (Read, Grep, Glob) para responder o que o código já responde: módulos, classes, templates, configurações e integrações envolvidos. Cite arquivos como `caminho:linha`.',
-  '3. Aponte o que falta decidir (regras de negócio, critérios de aceite, telas, casos de borda, dados, integrações) e faça no máximo 3 perguntas objetivas por vez.',
-  '4. Esboce a solução técnica: como faremos, quais arquivos mudam e por quê. Avalie a complexidade e diga se vale dividir em tarefas menores (entregas independentes, ou mais de um dia de trabalho).',
-  '5. Quando estiver claro, diga que o próximo passo é "Gerar card refinado".',
-  'Se o usuário anexar imagens, leia cada uma com a ferramenta Read. Seja direto; responda em português do Brasil.',
-  'Você NÃO implementa e NÃO escreve arquivos nesta etapa. Nunca escreva senhas, tokens ou valores de app/etc/env.php.',
-].join('\n')
-
-const REFINE_RULES = [
-  'Você escreve o card refinado de uma tarefa de desenvolvimento, em português do Brasil, a partir de uma conversa de refinamento. O card vai para o Jira ou o Azure DevOps, e a descrição técnica guiará o desenvolvimento.',
-  'Responda SOMENTE com um bloco ```json, sem texto antes ou depois:',
-  '{"title": "título curto e objetivo", "business": "markdown", "technical": "markdown", "plan": ["passo"], "acceptance": ["critério"], "observations": ["ponto de atenção"], "complexity": {"level": "baixa|media|alta", "reasoning": "por quê", "recommendSplit": true, "splits": [{"title": "...", "scope": "..."}]}}',
-  'business: contexto, problema e objetivo de negócio, para quem não conhece o código.',
-  'technical (a parte principal): a solução. Abordagem; componentes e arquivos que mudam, com caminhos reais; o que muda em cada um; decisões e alternativas descartadas; dados e configurações (db_schema, di.xml, layout, admin, cartuchos); como testar.',
-  'plan: de 3 a 12 passos na ordem de execução, cada um entregável e verificável. O desenvolvimento segue esses passos.',
-  'acceptance: critérios observáveis e verificáveis (use Dado/Quando/Então quando ajudar).',
-  'observations: riscos, dependências, dúvidas em aberto e cuidados de deploy. Lista vazia se não houver.',
-  'complexity: recomende dividir (recommendSplit true) quando houver entregas independentes ou o trabalho passar de um dia; então proponha de 2 a 4 partes, cada uma com escopo próprio e entregável sozinha. Sem recomendação, deixe splits vazio.',
-  'Confirme nomes no código (Read, Grep, Glob); não invente integrações. Leia as imagens anexadas com Read. Nunca inclua senhas, tokens ou valores de app/etc/env.php.',
-].join('\n')
+/** The task may change code, never the credential files */
+const DEV_DENIED = [...CLAUDE_SECRET_FILES, ...CLAUDE_SECRET_FILES.map((r) => r.replace('Read(', 'Edit(')), ...CLAUDE_SECRET_FILES.map((r) => r.replace('Read(', 'Write('))].join(',')
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 const list = (v: unknown, max: number, each: number) => (Array.isArray(v) ? v.map((x) => str(x, each)).filter(Boolean).slice(0, max) : [])
@@ -126,7 +127,13 @@ export class RefineService implements OnApplicationBootstrap {
     private readonly runner: CommandRunner,
     private readonly audit: AuditService,
     private readonly env: WorkspaceEnvService,
+    private readonly sfcc: SfccService,
+    private readonly skills: SkillsService,
   ) {}
+
+  private profile(id: string) {
+    return refineProfile(this.workspaces.get(id).tech)
+  }
 
   /** A session cut by a restart cannot resume: the card says so instead of showing it running forever */
   onApplicationBootstrap() {
@@ -231,7 +238,13 @@ export class RefineService implements OnApplicationBootstrap {
 
   private projectLine(id: string) {
     const ws = this.workspaces.get(id)
-    return `Projeto: ${ws.name}${ws.edition ? ` (${ws.edition}${ws.version ? ` ${ws.version}` : ''})` : ''}.`
+    const line = `Projeto: ${ws.name}${ws.edition ? ` (${ws.edition}${ws.version ? ` ${ws.version}` : ''})` : ''}.`
+    if (ws.tech !== 'salesforce-b2c') return line
+    try {
+      return `${line}\n${this.sfcc.promptContext(id)}`
+    } catch {
+      return line
+    }
   }
 
   /** One turn of the conversation: Claude reads the code and the images, and answers */
@@ -248,8 +261,12 @@ export class RefineService implements OnApplicationBootstrap {
       .filter(Boolean)
       .join('\n\n')
     const now = new Date().toISOString()
-    const reply = (await this.explore.ask(id, REFINE_STANCE, prompt)).trim() || '(sem resposta)'
-    card.messages.push({ role: 'user', content: message, at: now, ...(attachments.length ? { attachments } : {}) }, { role: 'assistant', content: reply, at: new Date().toISOString() })
+    const answer = await this.explore.ask(id, this.profile(id).stance, prompt, 'refine')
+    const reply = answer.text.trim() || '(sem resposta)'
+    card.messages.push(
+      { role: 'user', content: message, at: now, ...(attachments.length ? { attachments } : {}) },
+      { role: 'assistant', content: reply, at: new Date().toISOString(), ...(answer.skills.length ? { skills: answer.skills } : {}) },
+    )
   }
 
   /** A new demand: the card is created with the first turn of the conversation already answered */
@@ -304,13 +321,13 @@ export class RefineService implements OnApplicationBootstrap {
       ]
         .filter(Boolean)
         .join('\n\n')
-      const text = await this.explore.ask(id, REFINE_RULES, prompt)
+      const { text, skills } = await this.explore.ask(id, this.profile(id).rules, prompt, 'refine')
       const raw = parseJsonReply(text)
       if (!raw) {
         this.log.warn(`Card ${card.id}: resposta sem JSON legível (${text.length} caracteres): ${text.slice(0, 300)}`)
         throw new BadRequestException('O Claude não devolveu o card em um formato legível. Tente de novo.')
       }
-      card.refinement = this.sanitize(raw)
+      card.refinement = { ...this.sanitize(raw, this.profile(id).learning), ...(skills.length ? { skills } : {}) }
       card.title = card.refinement.title || card.title
       if (card.status === 'refinando') card.status = 'refinado'
     } catch (e) {
@@ -323,7 +340,7 @@ export class RefineService implements OnApplicationBootstrap {
     return card
   }
 
-  private sanitize(raw: Record<string, unknown>): Refinement {
+  private sanitize(raw: Record<string, unknown>, learning = false): Refinement {
     const c = (raw.complexity ?? {}) as Record<string, unknown>
     const level = ['baixa', 'media', 'alta'].includes(String(c.level)) ? (String(c.level) as Refinement['complexity']['level']) : 'media'
     const splits = Array.isArray(c.splits)
@@ -342,13 +359,14 @@ export class RefineService implements OnApplicationBootstrap {
       plan,
       acceptance: list(raw.acceptance, 20, 600),
       observations: list(raw.observations, 20, 600),
+      ...(learning ? { platformSteps: list(raw.platformSteps, 20, 600), learning: learningOf(raw.learning) } : {}),
       complexity: { level, reasoning: str(c.reasoning, 2000), recommendSplit: Boolean(c.recommendSplit) && splits.length >= 2, splits },
       generatedAt: new Date().toISOString(),
     }
   }
 
   /** Manual edits of the refined card (it is the engineer's card, Claude only drafts it) */
-  update(id: string, cardId: string, patch: Partial<Pick<Refinement, 'business' | 'technical' | 'plan' | 'acceptance' | 'observations'>> & { title?: string }) {
+  update(id: string, cardId: string, patch: Partial<Pick<Refinement, 'business' | 'technical' | 'plan' | 'acceptance' | 'observations' | 'platformSteps'>> & { title?: string }) {
     const card = this.get(id, cardId)
     if (patch.title !== undefined) card.title = str(patch.title, 120) || card.title
     if (card.refinement) {
@@ -357,6 +375,7 @@ export class RefineService implements OnApplicationBootstrap {
       if (patch.plan !== undefined) card.refinement.plan = list(patch.plan, 12, 400)
       if (patch.acceptance !== undefined) card.refinement.acceptance = list(patch.acceptance, 20, 600)
       if (patch.observations !== undefined) card.refinement.observations = list(patch.observations, 20, 600)
+      if (patch.platformSteps !== undefined) card.refinement.platformSteps = list(patch.platformSteps, 20, 600)
       if (patch.title !== undefined) card.refinement.title = card.title
     }
     this.save(id, card)
@@ -447,6 +466,8 @@ export class RefineService implements OnApplicationBootstrap {
     if (!card.git || !fs.existsSync(card.git.path)) throw new BadRequestException('Prepare a branch e o worktree da tarefa antes de desenvolver')
     const key = `${id}:${cardId}`
     if (this.running.has(key)) throw new ConflictException('O Claude já está desenvolvendo esta tarefa')
+    // an upload running from this worktree keeps a copy of dw.json next to the cartridges
+    if (fs.existsSync(path.join(card.git.path, 'cartridges', 'dw.json'))) throw new ConflictException('Há um upload para a instância rodando a partir desta tarefa: pare o upload antes de desenvolver')
     const bin = this.ai.claudeBinary()
     if (!bin) throw new BadRequestException('Claude Code não encontrado nesta máquina')
 
@@ -469,9 +490,10 @@ export class RefineService implements OnApplicationBootstrap {
     return { cancelled: true }
   }
 
-  private devPrompt(card: Card) {
+  private devPrompt(id: string, card: Card) {
     const r = card.refinement!
     const n = r.plan.length
+    const rules = this.profile(id).devRules(devContext(card.git!.path))
     return [
       `Você vai desenvolver esta tarefa no worktree atual (${card.git!.path}), na branch ${card.git!.branch}. A descrição técnica é a solução combinada no refinamento: siga-a.`,
       '',
@@ -489,13 +511,13 @@ export class RefineService implements OnApplicationBootstrap {
       '## Critérios de aceite',
       ...(r.acceptance.length ? r.acceptance.map((a) => `- ${a}`) : ['- (não informados)']),
       ...(r.observations.length ? ['', '## Pontos de atenção', ...r.observations.map((o) => `- ${o}`)] : []),
+      ...(r.platformSteps?.length ? ['', '## Passos no Business Manager (feitos por uma pessoa, fora do código)', ...r.platformSteps.map((o) => `- ${o}`)] : []),
       '',
       '## Como trabalhar',
       '1. Leia o código envolvido antes de alterar.',
       `2. Execute o plano na ordem. Ao concluir cada passo, escreva uma linha sozinha no formato: PROGRESSO: <número do passo>/${n} - <nome do passo>`,
-      '3. Siga o padrão do projeto: código nos módulos (ou cartuchos) próprios, sem editar vendor/ nem o core.',
-      '4. Verifique o que alterou: php -l nos arquivos PHP alterados e os testes automatizados do módulo, se existirem.',
-      `5. No fim, faça commit de tudo na branch ${card.git!.branch} com a mensagem "${card.title.replace(/"/g, "'")}" (sem push) e termine com um resumo: o que foi feito, arquivos alterados, como testar e o que ficou pendente.`,
+      ...rules.map((rule, i) => `${i + 3}. ${rule}`),
+      `${rules.length + 3}. No fim, faça commit de tudo na branch ${card.git!.branch} com a mensagem "${card.title.replace(/"/g, "'")}" (sem push) e termine com um resumo: o que foi feito, arquivos alterados, como testar e o que ficou pendente.`,
       'Se faltar uma informação essencial, registre como pendência no resumo em vez de inventar.',
     ].join('\n')
   }
@@ -536,6 +558,10 @@ export class RefineService implements OnApplicationBootstrap {
         ev = JSON.parse(line)
       } catch {
         return
+      }
+      for (const skill of skillsInEvent(ev)) {
+        dev.skills = [...new Set([...(dev.skills ?? []), skill])]
+        note(`⚡ Skill: ${this.skills.record({ workspace: id, feature: 'develop', skill }).title}`)
       }
       if (ev.type === 'result') {
         result = ev as typeof result
@@ -578,8 +604,11 @@ export class RefineService implements OnApplicationBootstrap {
     try {
       const res = await this.runner.run(
         'claude',
-        ['-p', '--output-format', 'stream-json', '--verbose', '--tools', DEV_TOOLS, '--allowedTools', DEV_TOOLS, '--permission-mode', 'acceptEdits', '--add-dir', this.explore.attachmentsDir(id)],
-        { executable: bin, cwd: wt, stdin: this.devPrompt(start), timeoutMs: DEV_TIMEOUT_MS, onLine, signal: ctrl.signal, env: this.env.values(id) },
+        withSkills(
+          ['-p', '--output-format', 'stream-json', '--verbose', '--tools', DEV_TOOLS, '--allowedTools', DEV_TOOLS, '--disallowedTools', DEV_DENIED, '--permission-mode', 'acceptEdits', '--add-dir', this.explore.attachmentsDir(id)],
+          this.skills.session(this.workspaces.get(id).tech, 'develop'),
+        ),
+        { executable: bin, cwd: wt, stdin: this.devPrompt(id, start), timeoutMs: DEV_TIMEOUT_MS, onLine, signal: ctrl.signal, env: this.env.values(id) },
       )
       const final = result as { is_error?: boolean; result?: string; total_cost_usd?: number } | null
       dev.finishedAt = new Date().toISOString()
@@ -598,7 +627,8 @@ export class RefineService implements OnApplicationBootstrap {
         status = 'falhou'
         dev.error = (final?.result ?? res.stderr ?? '').slice(0, 600) || `Claude Code terminou com código ${res.code}`
       }
-      dev.summary = final?.result?.slice(0, 20_000)
+      // the progress markers are for the card's bar, not for the summary
+      dev.summary = final?.result?.replace(/^PROGRESSO:.*$\n?/gm, '').trim().slice(0, 20_000)
       dev.costUsd = final?.total_cost_usd
     } catch (e) {
       dev.status = 'falhou'
@@ -610,4 +640,39 @@ export class RefineService implements OnApplicationBootstrap {
       flush(true)
     }
   }
+}
+
+/** The guide items Claude wrote, with links only to documentation hosts */
+function learningOf(v: unknown): LearningItem[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .map((x) => {
+      const o = (x ?? {}) as Record<string, unknown>
+      const docs = (Array.isArray(o.docs) ? o.docs : [])
+        .map((d) => ({ title: str((d as Record<string, unknown>)?.title, 160), url: str((d as Record<string, unknown>)?.url, 400) }))
+        .filter((d) => {
+          try {
+            const u = new URL(d.url)
+            return u.protocol === 'https:' && DOC_HOSTS.includes(u.hostname)
+          } catch {
+            return false
+          }
+        })
+        .slice(0, 3)
+      return { topic: str(o.topic, 120), adobe: str(o.adobe, 800), sfcc: str(o.sfcc, 800), why: str(o.why, 1200), docs }
+    })
+    .filter((i) => i.topic && i.sfcc)
+    .slice(0, 8)
+}
+
+/** What the development session can rely on in the worktree */
+function devContext(dir: string) {
+  let scripts: Record<string, string> = {}
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
+    scripts = pkg.scripts ?? {}
+  } catch {
+    // no package.json
+  }
+  return { scripts, hasNodeModules: fs.existsSync(path.join(dir, 'node_modules')) }
 }

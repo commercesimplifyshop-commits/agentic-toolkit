@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common'
 import { Action } from '../readonly/actions'
-import { AiService, type AiSettings } from './ai.service'
+import { AiService, type AiSettings, type AskTurn } from './ai.service'
 
 @Controller()
 export class AiController {
@@ -20,7 +20,7 @@ export class AiController {
 
   @Post('workspaces/:id/ask')
   @Action('ai.ask')
-  ask(@Param('id') id: string, @Body() body: { question: string }) {
-    return this.ai.ask(id, body.question)
+  ask(@Param('id') id: string, @Body() body: { question: string; cards?: string[]; history?: AskTurn[] }) {
+    return this.ai.ask(id, body.question, { cards: body.cards, history: body.history })
   }
 }

@@ -5,6 +5,8 @@ import { api } from '../api'
 import { AttachmentStrip, attachmentUrl, useAttachments } from './OpenSpecPropose'
 import { BaseCheck } from './GitPage'
 import { PrereqLink } from '../prereqs'
+import { SkillUses } from '../skills'
+import { useShell } from '../store'
 
 // Escapes raw HTML: the text is Claude's, and nothing in it may run as markup
 const md = new Marked({ gfm: true, renderer: { html: ({ text }: { text: string }) => text.replace(/</g, '&lt;').replace(/>/g, '&gt;') } })
@@ -16,10 +18,18 @@ interface Turn {
   content: string
   at: string
   attachments?: { id: string; name: string }[]
+  skills?: string[]
 }
 interface Split {
   title: string
   scope: string
+}
+interface LearningItem {
+  topic: string
+  adobe: string
+  sfcc: string
+  why: string
+  docs: { title: string; url: string }[]
 }
 interface Refinement {
   title: string
@@ -28,9 +38,16 @@ interface Refinement {
   plan: string[]
   acceptance: string[]
   observations: string[]
+  /** Salesforce B2C: Business Manager and metadata steps */
+  platformSteps?: string[]
+  /** Salesforce B2C: the "Para quem vem do Adobe" guide */
+  learning?: LearningItem[]
+  skills?: string[]
   complexity: { level: 'baixa' | 'media' | 'alta'; reasoning: string; recommendSplit: boolean; splits: Split[] }
   generatedAt: string
 }
+
+const isSfcc = (workspaceId: string) => useShell.getState().workspaces.find((w) => w.id === workspaceId)?.tech === 'salesforce-b2c'
 interface DevState {
   status: 'executando' | 'concluido' | 'falhou' | 'cancelado' | 'interrompido'
   startedAt: string
@@ -43,6 +60,7 @@ interface DevState {
   summary?: string
   error?: string
   costUsd?: number
+  skills?: string[]
 }
 type CardStatus = 'refinando' | 'refinado' | 'dividido' | 'pronto' | 'desenvolvendo' | 'concluido' | 'falhou' | 'interrompido'
 interface Card {
@@ -152,6 +170,7 @@ export function RefinePage() {
 
   const byId = useMemo(() => new Map((cards ?? []).map((c) => [c.id, c])), [cards])
   const running = (cards ?? []).filter((c) => c.dev?.status === 'executando')
+  const sfcc = useShell((s) => s.workspaces.find((w) => w.id === id)?.tech === 'salesforce-b2c')
 
   return (
     <div className="sf-page sf-refine">
@@ -167,6 +186,15 @@ export function RefinePage() {
       </div>
 
       {error && <div className="sf-callout red">{error}</div>}
+      {sfcc && (
+        <div className="sf-callout blue sf-learning-banner" style={{ marginBottom: 12 }}>
+          <span>🎓</span>
+          <span>
+            <strong>Modo aprendendo SFCC ligado.</strong> O Claude responde como arquiteto SFRA e explica cada conceito comparando com o Adobe Commerce; o card traz o guia "Para quem vem do
+            Adobe" e os passos no Business Manager.
+          </span>
+        </div>
+      )}
       {running.length > 0 && (
         <div className="sf-callout blue" style={{ marginBottom: 12 }}>
           {running.length === 1 ? '1 tarefa sendo desenvolvida' : `${running.length} tarefas sendo desenvolvidas em paralelo`} pelo Claude, cada uma no seu worktree.
@@ -357,6 +385,7 @@ function exportCard(card: Card, format: 'md' | 'jira' | 'ado') {
       `h2. Plano\n${r.plan.map((p) => `# ${p}`).join('\n')}`,
       `h2. Critérios de aceite\n${list(r.acceptance)}`,
       r.observations.length ? `h2. Pontos de observação\n${list(r.observations)}` : '',
+      r.platformSteps?.length ? `h2. Passos no Business Manager\n${list(r.platformSteps)}` : '',
       `_Complexidade: ${COMPLEXITY[r.complexity.level]}. ${r.complexity.reasoning}_`,
     ]
       .filter(Boolean)
@@ -370,6 +399,7 @@ function exportCard(card: Card, format: 'md' | 'jira' | 'ado') {
       `<h2>Plano</h2><ol>${r.plan.map((p) => `<li>${esc(p)}</li>`).join('')}</ol>`,
       `<h2>Critérios de aceite</h2>${ul(r.acceptance)}`,
       r.observations.length ? `<h2>Pontos de observação</h2>${ul(r.observations)}` : '',
+      r.platformSteps?.length ? `<h2>Passos no Business Manager</h2>${ul(r.platformSteps)}` : '',
       `<p><em>Complexidade: ${COMPLEXITY[r.complexity.level]}. ${esc(r.complexity.reasoning)}</em></p>`,
     ]
       .filter(Boolean)
@@ -382,6 +412,10 @@ function exportCard(card: Card, format: 'md' | 'jira' | 'ado') {
     `## Plano\n\n${r.plan.map((p, i) => `${i + 1}. ${p}`).join('\n')}`,
     `## Critérios de aceite\n\n${r.acceptance.map((a) => `- [ ] ${a}`).join('\n')}`,
     r.observations.length ? `## Pontos de observação\n\n${r.observations.map((o) => `- ${o}`).join('\n')}` : '',
+    r.platformSteps?.length ? `## Passos no Business Manager\n\n${r.platformSteps.map((o) => `- [ ] ${o}`).join('\n')}` : '',
+    r.learning?.length
+      ? `## Para quem vem do Adobe\n\n${r.learning.map((l) => `- **${l.topic}**: no Adobe, ${l.adobe}; no SFCC, ${l.sfcc}. ${l.why}${l.docs.length ? ` (${l.docs.map((d) => `[${d.title}](${d.url})`).join(', ')})` : ''}`).join('\n')}`
+      : '',
     `_Complexidade: ${COMPLEXITY[r.complexity.level]}. ${r.complexity.reasoning}_`,
   ]
     .filter(Boolean)
@@ -638,6 +672,14 @@ function DevPanel({ card, workspaceId, onPrepare, onDevelop, onStop }: { card: C
                 <Link className="sf-link" style={{ fontSize: 12 }} to={`/w/${workspaceId}/git?branch=${encodeURIComponent(card.git.branch)}`}>
                   Ver no Git →
                 </Link>
+                <Link className="sf-link" style={{ fontSize: 12 }} to={`/w/${workspaceId}/ask?card=${card.id}`}>
+                  ✦ Perguntar sobre esta tarefa →
+                </Link>
+                {isSfcc(workspaceId) && !running && (
+                  <Link className="sf-link" style={{ fontSize: 12 }} to={`/w/${workspaceId}/sfcc/upload?card=${card.id}`}>
+                    ⇪ Enviar para a sandbox →
+                  </Link>
+                )}
               </div>
             </div>
           ) : (
@@ -667,6 +709,7 @@ function DevPanel({ card, workspaceId, onPrepare, onDevelop, onStop }: { card: C
       {dev && (
         <div style={{ marginTop: 12 }}>
           <DevProgress dev={dev} />
+          <SkillUses skills={dev.skills} compact />
           <ol className="sf-dev-plan">
             {card.refinement.plan.map((p, i) => (
               <li key={i} className={i < dev.done ? 'done' : running && i === dev.done ? 'current' : ''}>
@@ -749,6 +792,7 @@ function Chat({ workspaceId, card, setCard, onGenerate }: { workspaceId: string;
             <div className="sf-faint" style={{ fontSize: 11 }}>
               {m.role === 'user' ? 'Você' : 'Claude'} · {ago(m.at)}
             </div>
+            {m.role === 'assistant' && <SkillUses skills={m.skills} />}
             {m.role === 'assistant' ? <Markdown text={m.content} /> : <div style={{ whiteSpace: 'pre-wrap' }}>{m.content}</div>}
             {m.attachments?.length ? (
               <div className="sf-attach">
@@ -796,6 +840,43 @@ function Chat({ workspaceId, card, setCard, onGenerate }: { workspaceId: string;
 }
 
 /** One list field of the card, editable as one item per line */
+/** "Para quem vem do Adobe": each SFCC idea the solution uses, next to what it would be in Adobe Commerce */
+function LearningGuide({ items }: { items: LearningItem[] }) {
+  return (
+    <section className="sf-refine-field">
+      <h3>🎓 Para quem vem do Adobe</h3>
+      <div className="sf-faint" style={{ fontSize: 11.5, marginBottom: 8 }}>Os conceitos de Salesforce B2C que esta solução usa, comparados com o Adobe Commerce. Vai na cópia em Markdown; não vai para o Jira nem para o Azure DevOps.</div>
+      <div className="sf-learning">
+        {items.map((l, i) => (
+          <div key={i} className="sf-learning-item">
+            <strong>{l.topic}</strong>
+            <div className="sf-learning-map">
+              <div>
+                <span>No Adobe Commerce</span>
+                {l.adobe}
+              </div>
+              <div>
+                <span>No Salesforce B2C</span>
+                {l.sfcc}
+              </div>
+            </div>
+            {l.why && <div className="sf-learning-why">{l.why}</div>}
+            {l.docs.length > 0 && (
+              <div className="sf-learning-docs">
+                {l.docs.map((d) => (
+                  <a key={d.url} href={d.url} target="_blank" rel="noreferrer noopener">
+                    {d.title} ↗
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function ListField({ title, items, ordered = false, editing, value, onChange }: { title: string; items: string[]; ordered?: boolean; editing: boolean; value: string; onChange: (v: string) => void }) {
   const Tag = ordered ? 'ol' : 'ul'
   return (
@@ -822,13 +903,13 @@ function ListField({ title, items, ordered = false, editing, value, onChange }: 
 function RefinedCard({ workspaceId, card, setCard, onCopied, onRegenerate }: { workspaceId: string; card: Card; setCard: (c: Card) => void; onCopied: (t: string) => void; onRegenerate: () => void }) {
   const r = card.refinement!
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState({ title: '', business: '', technical: '', plan: '', acceptance: '', observations: '' })
+  const [draft, setDraft] = useState({ title: '', business: '', technical: '', plan: '', acceptance: '', observations: '', platformSteps: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [splitOpen, setSplitOpen] = useState(false)
 
   const startEdit = () => {
-    setDraft({ title: card.title, business: r.business, technical: r.technical, plan: r.plan.join('\n'), acceptance: r.acceptance.join('\n'), observations: r.observations.join('\n') })
+    setDraft({ title: card.title, business: r.business, technical: r.technical, plan: r.plan.join('\n'), acceptance: r.acceptance.join('\n'), observations: r.observations.join('\n'), platformSteps: (r.platformSteps ?? []).join('\n') })
     setEditing(true)
   }
   const lines = (s: string) => s.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -844,6 +925,7 @@ function RefinedCard({ workspaceId, card, setCard, onCopied, onRegenerate }: { w
           plan: lines(draft.plan),
           acceptance: lines(draft.acceptance),
           observations: lines(draft.observations),
+          ...(r.platformSteps ? { platformSteps: lines(draft.platformSteps) } : {}),
         }),
       )
       setEditing(false)
@@ -917,7 +999,12 @@ function RefinedCard({ workspaceId, card, setCard, onCopied, onRegenerate }: { w
         {editing ? <textarea className="sf-input sf-mono" rows={20} value={draft.technical} onChange={(e) => setDraft({ ...draft, technical: e.target.value })} /> : <Markdown text={r.technical} />}
       </section>
 
+      {r.learning && r.learning.length > 0 && <LearningGuide items={r.learning} />}
+
       <ListField title="Plano de execução" ordered items={r.plan} editing={editing} value={draft.plan} onChange={(v) => setDraft({ ...draft, plan: v })} />
+      {r.platformSteps && (
+        <ListField title="Passos no Business Manager" items={r.platformSteps} editing={editing} value={draft.platformSteps} onChange={(v) => setDraft({ ...draft, platformSteps: v })} />
+      )}
       <ListField title="Critérios de aceite" items={r.acceptance} editing={editing} value={draft.acceptance} onChange={(v) => setDraft({ ...draft, acceptance: v })} />
       <ListField title="Pontos de observação" items={r.observations} editing={editing} value={draft.observations} onChange={(v) => setDraft({ ...draft, observations: v })} />
 
@@ -954,6 +1041,7 @@ function RefinedCard({ workspaceId, card, setCard, onCopied, onRegenerate }: { w
           </div>
         )}
       </section>
+      <SkillUses skills={r.skills} compact />
       <div className="sf-faint" style={{ fontSize: 11 }}>Gerado em {ago(r.generatedAt)}</div>
 
       {splitOpen && (

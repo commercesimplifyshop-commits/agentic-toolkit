@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
+import { runClaudeWatchingSkills, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
 import type { TechId } from '../config/paths'
 import { AiService } from '../ai/ai.service'
 import { MapStore } from '../analysis/map-store.service'
@@ -71,6 +73,7 @@ export class DiagramGeneratorService {
     private readonly ai: AiService,
     private readonly diagrams: DiagramsService,
     private readonly audit: AuditService,
+    private readonly skills: SkillsService,
   ) {}
 
   /** `saved` runs once the diagram exists, e.g. to link it to a change */
@@ -166,7 +169,9 @@ export class DiagramGeneratorService {
     const ask = `Instalação: ${ws.name} · ${ws.edition ?? 'Magento'} ${ws.version ?? ''} · vendors próprios: ${ws.ownVendors.join(', ') || '—'}\n\nPedido: ${input.request.trim()}`
 
     this.jobs.log(job, `Modelo: ${guide.first} · cenário ${input.scenario}`)
-    const res = await this.runner.run('claude', args, { executable: bin, cwd: root, stdin: ask, timeoutMs: 10 * 60_000, protectedRoots: [root], signal })
+    const res = await runClaudeWatchingSkills(this.runner, withSkills(args, this.skills.session(ws.tech, 'diagrams')), { executable: bin, cwd: root, stdin: ask, timeoutMs: 10 * 60_000, protectedRoots: [root], signal }, (skill) =>
+      this.jobs.log(job, `⚡ Skill: ${this.skills.record({ workspace: id, feature: 'diagrams', skill }).title}`),
+    )
     if (signal.aborted) throw new GenerationCancelled()
 
     let parsed: { result?: string; is_error?: boolean; subtype?: string } = {}

@@ -336,7 +336,11 @@ function Instance({ o }: { o: SfccOverview }) {
         <div className="sf-callout green">Nenhuma credencial guardada no projeto.</div>
       )}
       <p className="sf-faint" style={{ fontSize: 12.5, marginTop: 14 }}>
-        Esta tela só lê o projeto. Ações na instância, como enviar código, rodar jobs e consultar OCAPI, dependem de um cofre de credenciais e ainda não estão disponíveis.
+        Esta tela só lê o projeto. Para enviar código para a sandbox, use{' '}
+        <Link className="sf-link" to={`/w/${useParams().id}/sfcc/upload`}>
+          Upload para a instância
+        </Link>
+        . Rodar jobs e consultar OCAPI dependem de um cofre de credenciais e ainda não estão disponíveis.
       </p>
     </>
   )

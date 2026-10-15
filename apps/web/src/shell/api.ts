@@ -164,6 +164,18 @@ export interface AskResult {
   model?: string
   toolCalls: { name: string; input: unknown }[]
   stopReason?: string
+  /** Skills Claude Code loaded for this answer */
+  skills?: { name: string; title: string }[]
+  /** Refinement tasks the question was linked to */
+  tasks?: LinkedTask[]
+}
+
+/** Mirrors apps/api/src/refine/task-context.service.ts */
+export interface LinkedTask {
+  id: string
+  title: string
+  status: string
+  branch?: string
 }
 
 export interface Providers {

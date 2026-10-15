@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common'
+import { SkillsService } from '../skills/skills.service'
 import { AiService } from '../ai/ai.service'
 import { BoardsService } from '../boards/boards.service'
 import { DiagramGeneratorService } from '../diagrams/diagram-generator.service'
@@ -37,6 +38,7 @@ export class LinksAssistService {
     private readonly links: LinksService,
     private readonly boards: BoardsService,
     private readonly generator: DiagramGeneratorService,
+    private readonly skills: SkillsService,
   ) {}
 
   /** Reads the change and returns what it needs; creates nothing */
@@ -61,7 +63,10 @@ export class LinksAssistService {
       TOOL_CATALOG,
     ].join('\n')
     const prompt = `Proposta:\n${proposal}\n\nTarefas:\n${tasks || '(sem tarefas)'}`
-    const reply = await askClaudeReadonly(this.runner, bin, root, system, prompt)
+    const reply = await askClaudeReadonly(this.runner, bin, root, system, prompt, {
+      session: this.skills.session(this.workspaces.get(id).tech, 'openspec'),
+      onSkill: (skill) => this.skills.record({ workspace: id, feature: 'openspec', skill }),
+    })
     const parsed = parseJsonReply(reply)
     if (!parsed || !Array.isArray(parsed.tools)) throw new BadRequestException('O Claude não devolveu as ferramentas no formato esperado. Tente de novo.')
     return sanitizePlans(parsed.tools)

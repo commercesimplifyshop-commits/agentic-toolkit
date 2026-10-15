@@ -3,13 +3,20 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { CORE_DIR } from '../config/paths'
 import { WorkspacesService } from '../workspaces/workspaces.service'
-import { Bulletin, parseBulletin, parseIndex } from './bulletin-parser'
+import { Bulletin, PARSER_VERSION, parseBulletin, parseCaasIndex } from './bulletin-parser'
 import { TopicItem, TopicProvider, Tone } from './topic'
 import { impactOf, type Verdict } from './version-match'
 
-const INDEX_URL = 'https://helpx.adobe.com/ca/security/security-bulletin.html'
+/** The Adobe Trust Center page that lists the bulletins (https://www.adobe.com/trust/security/bulletins-and-advisories.html) */
+export const BULLETINS_PAGE = 'https://www.adobe.com/trust/security/bulletins-and-advisories.html'
+/**
+ * The content API that page reads its list from: the collection of security bulletins.
+ * Bulletins published before 2026 stay on HelpX; the ones already read are kept in the cache.
+ */
+export const INDEX_URL =
+  'https://www.adobe.com/chimera-api/collection?originSelection=hawks&contentTypeTags=caas%3Acontent-type%2Fdocumentation&collectionTags=&excludeContentWithTags=&language=en&country=us&complexQuery=((%22caas%3Atrust-center%2Fsecurity-bulletin%22))&currentEntityId=&featuredCards=&environment=&draft=false&size=250&flatFile=false'
 /** The only host this topic reads: nothing else is ever requested */
-const ALLOWED_HOST = 'helpx.adobe.com'
+const ALLOWED_HOST = 'www.adobe.com'
 const MAX_PAGES_PER_RUN = 40
 const DIR = path.join(CORE_DIR, 'news')
 const CACHE_FILE = path.join(DIR, 'security-bulletin.json')
@@ -66,13 +73,13 @@ export class SecurityBulletinTopic implements TopicProvider {
       .pop() || undefined
   }
 
-  private async get(url: string): Promise<string> {
+  private async get(url: string, accept = 'text/html'): Promise<string> {
     const u = new URL(url)
     if (u.protocol !== 'https:' || u.hostname !== ALLOWED_HOST) throw new Error(`Endereço não permitido: ${u.hostname}`)
     const ctl = new AbortController()
     const timeout = setTimeout(() => ctl.abort(), 20_000)
     try {
-      const res = await fetch(url, { headers: { 'user-agent': 'AgenticToolkit/security-bulletin-reader', accept: 'text/html' }, signal: ctl.signal })
+      const res = await fetch(url, { headers: { 'user-agent': 'AgenticToolkit/security-bulletin-reader', accept }, signal: ctl.signal })
       if (new URL(res.url || url).hostname !== ALLOWED_HOST) throw new Error('Redirecionamento para fora do Adobe')
       if (!res.ok) throw new Error(`HTTP ${res.status} em ${u.pathname}`)
       return await res.text()
@@ -81,19 +88,33 @@ export class SecurityBulletinTopic implements TopicProvider {
     }
   }
 
-  /** Index first; then only the bulletins not cached yet. Bulletins already read are kept. */
+  /**
+   * The Trust Center list first; then only the bulletins not cached yet. Bulletins already read are
+   * kept, including the ones from HelpX (before 2026) that the Trust Center no longer lists.
+   */
   async refresh(): Promise<void> {
-    const urls = parseIndex(await this.get(INDEX_URL), INDEX_URL)
-    if (!urls.length) throw new Error('Nenhum boletim do Commerce encontrado na página')
+    let json: unknown
+    try {
+      json = JSON.parse(await this.get(INDEX_URL, 'application/json'))
+    } catch (err) {
+      throw new Error(`Lista de boletins da Adobe ilegível (${BULLETINS_PAGE}): ${(err as Error).message}`)
+    }
+    const entries = parseCaasIndex(json)
+    if (!entries.length) throw new Error(`Nenhum boletim do Commerce encontrado em ${BULLETINS_PAGE}`)
     const known = new Map(this.readCache().bulletins.map((b) => [b.url, b]))
-    for (const url of urls.filter((u) => !known.has(u)).slice(0, MAX_PAGES_PER_RUN)) {
+    // new bulletins, and ones read by an older version of the parser
+    for (const e of entries.filter((x) => known.get(x.url)?.parser !== PARSER_VERSION).slice(0, MAX_PAGES_PER_RUN)) {
       try {
-        known.set(url, parseBulletin(await this.get(url), url))
+        const b = parseBulletin(await this.get(e.url), e.url)
+        // the list knows the date and priority even when the page layout changes
+        known.set(e.url, { ...b, id: b.id === 'APSB' ? e.id : b.id, published: b.published ?? e.published, priority: b.priority ?? e.priority })
       } catch (err) {
-        this.log.warn(`Boletim ${url} não foi lido: ${(err as Error).message}`)
+        this.log.warn(`Boletim ${e.url} não foi lido: ${(err as Error).message}`)
       }
     }
-    const bulletins = urls.map((u) => known.get(u)).filter((b): b is Bulletin => !!b)
+    // older bulletins (HelpX) stay, unless the Trust Center lists the same one
+    const listed = new Set(entries.flatMap((e) => (known.has(e.url) ? [e.url, e.id] : [e.url])))
+    const bulletins = [...entries.map((e) => known.get(e.url)), ...[...known.values()].filter((b) => !listed.has(b.url) && !listed.has(b.id))].filter((b): b is Bulletin => !!b)
     this.writeCache({ fetchedAt: new Date().toISOString(), bulletins })
   }
 

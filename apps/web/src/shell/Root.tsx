@@ -26,6 +26,7 @@ const OpenSpecChangePage = lazy(() => import('./pages/OpenSpecChangePage').then(
 const OpenSpecSpecPage = lazy(() => import('./pages/OpenSpecChangePage').then((m) => ({ default: m.OpenSpecSpecPage })))
 const CodePage = lazy(() => import('./pages/CodePage').then((m) => ({ default: m.CodePage })))
 const SfccPage = lazy(() => import('./pages/SfccPages').then((m) => ({ default: m.SfccPage })))
+const SfccUploadPage = lazy(() => import('./pages/SfccUploadPage').then((m) => ({ default: m.SfccUploadPage })))
 const UpdatesPage = lazy(() => import('./pages/UpdatesPage').then((m) => ({ default: m.UpdatesPage })))
 const GitPage = lazy(() => import('./pages/GitPage').then((m) => ({ default: m.GitPage })))
 const RefinePage = lazy(() => import('./pages/RefinePage').then((m) => ({ default: m.RefinePage })))
@@ -97,6 +98,7 @@ const router = createBrowserRouter([
       { path: 'board', element: <Suspense fallback={loading}><BoardPage /></Suspense> },
       { path: 'diagrams', element: <Suspense fallback={loading}><DiagramsPage /></Suspense> },
       { path: 'openspec', element: <Suspense fallback={loading}><OpenSpecPage /></Suspense> },
+      { path: 'sfcc/upload', element: <Suspense fallback={loading}><SfccUploadPage /></Suspense> },
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
       { path: 'atualizacao', element: <Suspense fallback={loading}><UpdatesPage /></Suspense> },
       { path: 'git', element: <Suspense fallback={loading}><GitPage /></Suspense> },

@@ -1,4 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { runClaudeWatchingSkills, withSkills } from '../skills/claude-skills'
+import { SkillsService } from '../skills/skills.service'
 import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -95,6 +97,7 @@ export class OpenSpecAuthoringService {
     private readonly openspec: OpenSpecService,
     private readonly ai: AiService,
     private readonly links: LinksService,
+    private readonly skills: SkillsService,
   ) {}
 
   private where(id: string) {
@@ -409,7 +412,9 @@ export class OpenSpecAuthoringService {
       '--append-system-prompt',
       system,
     ]
-    const res = await this.runner.run('claude', args, { executable: bin, cwd: root, stdin: prompt, timeoutMs: 5 * 60_000, protectedRoots: [root] })
+    const res = await runClaudeWatchingSkills(this.runner, withSkills(args, this.skills.session(this.workspaces.get(id).tech, 'openspec')), { executable: bin, cwd: root, stdin: prompt, timeoutMs: 5 * 60_000, protectedRoots: [root] }, (skill) =>
+      this.skills.record({ workspace: id, feature: 'openspec', skill }),
+    )
     let parsed: { result?: string; is_error?: boolean } = {}
     try {
       parsed = JSON.parse(res.stdout)
@@ -436,7 +441,10 @@ export class OpenSpecAuthoringService {
       TOOL_CATALOG,
     ].join('\n')
     const prompt = `Arquivo atual (${body.path}):\n${current.content}\n\nPedido: ${body.instruction.trim()}`
-    const reply = await askClaudeReadonly(this.runner, bin, root, system, prompt)
+    const reply = await askClaudeReadonly(this.runner, bin, root, system, prompt, {
+      session: this.skills.session(this.workspaces.get(id).tech, 'openspec'),
+      onSkill: (skill) => this.skills.record({ workspace: id, feature: 'openspec', skill }),
+    })
     const parsed = parseJsonReply(reply)
     if (!parsed || typeof parsed.markdown !== 'string' || !parsed.markdown.trim()) throw new BadRequestException('O Claude não devolveu a revisão no formato esperado. Tente de novo.')
     const text = parsed.markdown.endsWith('\n') ? parsed.markdown : `${parsed.markdown}\n`

@@ -1,6 +1,7 @@
 import { Marked } from 'marked'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import { SkillUses } from '../skills'
 import { AttachmentStrip, attachmentUrl, useAttachments, type Attached } from './OpenSpecPropose'
 
 interface Turn {
@@ -8,6 +9,7 @@ interface Turn {
   content: string
   at: string
   attachments?: Attached[]
+  skills?: string[]
 }
 interface Session {
   id: string
@@ -271,7 +273,10 @@ function Message({ workspaceId, turn }: { workspaceId: string; turn: Turn }) {
           {turn.content}
         </div>
       ) : (
-        <div className="sf-doc sf-doc-small" dangerouslySetInnerHTML={{ __html: md.parse(turn.content) as string }} />
+        <>
+          <SkillUses skills={turn.skills} />
+          <div className="sf-doc sf-doc-small" dangerouslySetInnerHTML={{ __html: md.parse(turn.content) as string }} />
+        </>
       )}
       {turn.attachments && turn.attachments.length > 0 && (
         <div className="sf-attach" style={{ marginTop: 8 }}>
