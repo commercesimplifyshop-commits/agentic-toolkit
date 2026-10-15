@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Logo } from '../Logo'
 import { api, waitJob, type Detection, type GitAuth, type Job, type TechId, type TechInfo, type Workspace } from '../api'
 import { DetectionView } from '../components/DetectionView'
 import { FolderBrowser } from '../components/FolderBrowser'
@@ -16,15 +17,8 @@ export function ConnectPage() {
       <div className="sf-connect">
         <div className="sf-connect-inner">
           <div className="sf-brand">
-            <div className="sf-brand-logo">
-              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-                <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.6 3.7L12 11.7 5.4 8 12 4.3ZM5 9.7l6 3.4v6.6l-6-3.4V9.7Zm8 10v-6.6l6-3.4v6.6l-6 3.4Z" fill="currentColor" />
-              </svg>
-            </div>
-            <div>
-              <strong>Agentic Toolkit</strong>
-              <span>Entenda a sua instalação lendo o código</span>
-            </div>
+            <Logo size={44} />
+            <span className="sf-brand-tagline">Entenda e evolua a sua loja a partir do código</span>
           </div>
           {id ? <ConfigureStep id={id} /> : <SourceStep />}
         </div>

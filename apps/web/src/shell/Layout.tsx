@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FEATURE_NEEDS, featureOf, PrereqNotice } from './prereqs'
 import { IdeLayer } from './ide/IdeLayer'
+import { LogoMark } from './Logo'
 import { initials, useShell } from './store'
 
 interface NavItem {
@@ -167,9 +168,7 @@ export function Layout() {
     <div className="sf-root">
       <aside className="sf-rail">
         <Link to="/" className="sf-rail-logo" title="Agentic Toolkit">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-            <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.6 3.7L12 11.7 5.4 8 12 4.3ZM5 9.7l6 3.4v6.6l-6-3.4V9.7Zm8 10v-6.6l6-3.4v6.6l-6 3.4Z" fill="currentColor" />
-          </svg>
+          <LogoMark size={28} color="var(--sf-text)" />
         </Link>
         {workspaces
           .filter((w) => w.status === 'analyzed')

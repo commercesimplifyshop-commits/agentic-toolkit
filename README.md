@@ -1,3 +1,10 @@
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/web/public/brand/logo-dark-bg.svg">
+    <img src="apps/web/public/brand/logo-light-bg.svg" alt="Agentic Toolkit" height="56">
+  </picture>
+</p>
+
 # Agentic Toolkit
 
 Dashboard para entender e evoluir qualquer instalação **Magento 2 / Adobe Commerce** a partir do código. Você conecta uma instalação (pasta local, repositório Git, inclusive privado, ou .zip) e ganha:

@@ -45,7 +45,8 @@
 /* ---- rail (workspaces) ---------------------------------------------------- */
 
 .sf-rail { width: 64px; flex: none; border-right: 1px solid var(--sf-border); display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 10px; }
-.sf-rail-logo { width: 34px; height: 34px; display: grid; place-items: center; color: var(--sf-muted); margin-bottom: 6px; }
+.sf-rail-logo { width: 34px; height: 34px; display: grid; place-items: center; margin-bottom: 6px; border-radius: 8px; }
+.sf-rail-logo:hover { background: var(--sf-hover); }
 .sf-ws-avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; font-size: 15px; background: var(--sf-panel-2); border: 1px solid var(--sf-border); color: var(--sf-muted); position: relative; }
 .sf-ws-avatar.active { background: var(--sf-accent); color: #fff; border-color: transparent; }
 .sf-ws-avatar:hover { border-color: var(--sf-faint); }
@@ -211,10 +212,10 @@
 /* onboarding */
 .sf-connect { position: fixed; inset: 0; overflow-y: auto; background: radial-gradient(1200px 500px at 50% -10%, rgba(249, 115, 22, 0.09), transparent), var(--sf-bg); }
 .sf-connect-inner { max-width: 780px; margin: 0 auto; padding: 56px 20px 80px; }
-.sf-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
-.sf-brand-logo { width: 42px; height: 42px; border-radius: 12px; background: var(--sf-accent); display: grid; place-items: center; color: #fff; }
-.sf-brand strong { font-size: 18px; display: block; }
-.sf-brand span { color: var(--sf-muted); font-size: 12.5px; }
+.sf-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 28px; }
+.sf-brand-tagline { color: var(--sf-muted); font-size: 13px; }
+.sf-logo { display: inline-flex; align-items: center; }
+.sf-logo-name { letter-spacing: -0.025em; white-space: nowrap; line-height: 1; }
 .sf-connect h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.02em; }
 .sf-connect .lead { color: var(--sf-muted); margin: 0 0 24px; line-height: 1.6; }
 .sf-steps { display: flex; gap: 8px; margin-bottom: 18px; }

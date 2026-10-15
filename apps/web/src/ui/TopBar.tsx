@@ -1,4 +1,5 @@
 import { useShallow } from 'zustand/react/shallow'
+import { LogoMark } from '../shell/Logo'
 import { clock } from '../sources/clock'
 import { useStore } from '../store/useStore'
 import { brl, clockLabel, pct } from './format'
@@ -27,12 +28,10 @@ export function TopBar({ sourceLabel, onReset }: { sourceLabel: string; onReset:
     <header className="topbar">
       <div className="brand card">
         <div className="logo">
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-            <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 6.6 3.7L12 11.7 5.4 8 12 4.3ZM5 9.7l6 3.4v6.6l-6-3.4V9.7Zm8 10v-6.6l6-3.4v6.6l-6 3.4Z" fill="currentColor" />
-          </svg>
+          <LogoMark size={26} color="#F5F5F3" />
         </div>
         <div>
-          <strong>Agentic Toolkit 3D</strong>
+          <strong>Agentic Toolkit</strong>
           <span>Magento 2 · Fluxo de pedido B2C</span>
         </div>
       </div>

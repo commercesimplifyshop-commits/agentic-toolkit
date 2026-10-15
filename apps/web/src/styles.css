@@ -132,8 +132,8 @@ h2, h3, p { margin: 0; }
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--brand);
-  color: #fff;
+  /* the dark app icon of the logo: light modules, orange agent */
+  background: #141414;
   display: grid;
   place-items: center;
 }
