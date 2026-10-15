@@ -1,0 +1,261 @@
+{
+ "version": 1,
+ "family": "c4",
+ "nodes": [
+  {
+   "id": "cliente",
+   "type": "person",
+   "title": "Cliente",
+   "description": "Navega e compra na loja"
+  },
+  {
+   "id": "equipe",
+   "type": "person",
+   "title": "Equipe da loja",
+   "description": "CatÃ¡logo, promoÃ§Ãµes, conteÃºdo e configuraÃ§Ã£o no Business Manager"
+  },
+  {
+   "id": "b_loja",
+   "type": "boundary",
+   "title": "loja-viva-e2e Â· Salesforce B2C Commerce"
+  },
+  {
+   "id": "storefront",
+   "type": "container",
+   "title": "Storefront",
+   "tech": "SFRA Â· sgmf-scripts ^3.0.0",
+   "description": "Rotas Product-Show, Cart-Show e PagamentoNotifica-Webhook; 1 template ISML (cart.isml)",
+   "parent": "b_loja"
+  },
+  {
+   "id": "bm",
+   "type": "container",
+   "title": "Business Manager",
+   "tech": "B2C Commerce",
+   "description": "Sites RefArch e site_template; agenda jobs e cadastra serviÃ§os",
+   "parent": "b_loja"
+  },
+  {
+   "id": "jobs",
+   "type": "container",
+   "title": "Jobs",
+   "tech": "jobs.xml / steptypes.json",
+   "description": "Loja-EnviaPedidosERP (step custom.Loja.EnviaPedidos)",
+   "parent": "b_loja"
+  },
+  {
+   "id": "api",
+   "type": "container",
+   "title": "SCAPI / OCAPI",
+   "tech": "Hooks dw.ocapi.*",
+   "description": "Hook dw.ocapi.shop.basket.afterPOST",
+   "parent": "b_loja"
+  },
+  {
+   "id": "db",
+   "type": "db",
+   "title": "Dados da instÃ¢ncia",
+   "tech": "B2C Commerce",
+   "description": "CatÃ¡logo, cestas, pedidos (custom.erpEnviado), clientes",
+   "parent": "b_loja"
+  },
+  {
+   "id": "b_path",
+   "type": "boundary",
+   "title": "Cartridge path (RefArch)",
+   "parent": "b_loja"
+  },
+  {
+   "id": "app_loja",
+   "type": "container",
+   "title": "1. app_loja",
+   "tech": "Cartucho do projeto",
+   "description": "Product.js (append Show), job enviaPedidos, serviÃ§os erp e frete, hook basket.afterPOST",
+   "parent": "b_path"
+  },
+  {
+   "id": "int_pagamento",
+   "type": "container",
+   "title": "2. int_pagamento",
+   "tech": "Cartucho de integraÃ§Ã£o",
+   "description": "gateway.js, processador loja_gateway, PagamentoNotifica-Webhook",
+   "parent": "b_path"
+  },
+  {
+   "id": "app_storefront_base",
+   "type": "container",
+   "title": "3. app_storefront_base",
+   "tech": "Base SFRA",
+   "description": "Cart.js, model cart, cart.isml, hook dw.order.calculate",
+   "parent": "b_path"
+  },
+  {
+   "id": "b_cliente",
+   "type": "boundary",
+   "title": "Sistemas do cliente"
+  },
+  {
+   "id": "erp",
+   "type": "external",
+   "title": "ERP SAP",
+   "tech": "ServiÃ§o erp.sap.pedidos",
+   "description": "Recebe os pedidos da loja",
+   "parent": "b_cliente"
+  },
+  {
+   "id": "b_saas",
+   "type": "boundary",
+   "title": "SaaS e terceiros"
+  },
+  {
+   "id": "gateway",
+   "type": "external",
+   "title": "Gateway de pagamento",
+   "tech": "ServiÃ§o pagamento.gateway.autoriza",
+   "description": "Autoriza pagamentos e notifica status",
+   "parent": "b_saas"
+  },
+  {
+   "id": "correios",
+   "type": "external",
+   "title": "Correios (frete)",
+   "tech": "ServiÃ§o frete.correios.cotacao",
+   "description": "CotaÃ§Ã£o de frete; serviÃ§o definido, sem chamada no cÃ³digo",
+   "parent": "b_saas"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "source": "cliente",
+   "target": "storefront",
+   "label": "Navega e compra",
+   "tech": "HTTPS",
+   "dashed": false
+  },
+  {
+   "id": "e2",
+   "source": "equipe",
+   "target": "bm",
+   "label": "Opera",
+   "tech": "HTTPS",
+   "dashed": false
+  },
+  {
+   "id": "e3",
+   "source": "bm",
+   "target": "jobs",
+   "label": "Agenda e executa jobs",
+   "dashed": false
+  },
+  {
+   "id": "e4",
+   "source": "storefront",
+   "target": "app_loja",
+   "label": "Product-Show (append)",
+   "tech": "1Âº no path",
+   "dashed": false
+  },
+  {
+   "id": "e5",
+   "source": "storefront",
+   "target": "int_pagamento",
+   "label": "Processador loja_gateway e webhook",
+   "tech": "2Âº no path",
+   "dashed": false
+  },
+  {
+   "id": "e6",
+   "source": "storefront",
+   "target": "app_storefront_base",
+   "label": "Cart-Show, dw.order.calculate",
+   "tech": "3Âº no path",
+   "dashed": false
+  },
+  {
+   "id": "e7",
+   "source": "app_loja",
+   "target": "app_storefront_base",
+   "label": "Estende Product",
+   "tech": "module.superModule",
+   "dashed": false
+  },
+  {
+   "id": "e8",
+   "source": "api",
+   "target": "app_loja",
+   "label": "basket.afterPOST",
+   "tech": "Hook OCAPI",
+   "dashed": false
+  },
+  {
+   "id": "e9",
+   "source": "jobs",
+   "target": "app_loja",
+   "label": "custom.Loja.EnviaPedidos",
+   "tech": "Script module step",
+   "dashed": false
+  },
+  {
+   "id": "e10",
+   "source": "storefront",
+   "target": "db",
+   "label": "LÃª e grava",
+   "dashed": false
+  },
+  {
+   "id": "e11",
+   "source": "bm",
+   "target": "db",
+   "label": "LÃª e grava",
+   "dashed": false
+  },
+  {
+   "id": "e12",
+   "source": "jobs",
+   "target": "db",
+   "label": "Busca pedidos erpEnviado != true",
+   "tech": "OrderMgr",
+   "dashed": false
+  },
+  {
+   "id": "e13",
+   "source": "api",
+   "target": "db",
+   "label": "LÃª e grava cestas",
+   "dashed": false
+  },
+  {
+   "id": "e14",
+   "source": "app_loja",
+   "target": "erp",
+   "label": "Envia pedidos (orderNo) via job",
+   "tech": "HTTP POST JSON, assÃ­ncrono",
+   "dashed": false
+  },
+  {
+   "id": "e15",
+   "source": "int_pagamento",
+   "target": "gateway",
+   "label": "Autoriza pagamento",
+   "tech": "HTTP, sÃ­ncrono",
+   "dashed": false
+  },
+  {
+   "id": "e16",
+   "source": "gateway",
+   "target": "int_pagamento",
+   "label": "Notifica status (PagamentoNotifica-Webhook)",
+   "tech": "Webhook HTTPS POST",
+   "dashed": false
+  },
+  {
+   "id": "e17",
+   "source": "app_loja",
+   "target": "correios",
+   "label": "CotaÃ§Ã£o de frete (nÃ£o usado)",
+   "tech": "HTTP",
+   "dashed": true
+  }
+ ]
+}

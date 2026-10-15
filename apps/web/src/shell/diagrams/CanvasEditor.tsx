@@ -77,7 +77,7 @@ function BoundaryNode({ data, selected }: NodeProps<RFNode>) {
   )
 }
 
-const nodeTypes = { element: ElementNode, boundary: BoundaryNode }
+export const nodeTypes = { element: ElementNode, boundary: BoundaryNode }
 
 // ---- conversions -----------------------------------------------------------------------------
 

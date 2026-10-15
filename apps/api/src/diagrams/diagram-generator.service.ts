@@ -134,6 +134,7 @@ export class DiagramGeneratorService {
       '- Cada nó: {"id", "type", "title", "tech"?, "description"?, "parent"?}. id usa só letras, números, _ ou -. parent é o id de um nó do tipo boundary que o contém.',
       '- Tipos c4: person, system, external, container, db, queue, boundary. Tipos flow: start, process, decision, end, database, external.',
       '- Cada conexão: {"id", "source", "target", "label"?, "tech"?, "dashed"?}. source e target são ids de nós.',
+      '- Nenhuma conexão começa ou termina num nó boundary (ele não tem ponto de conexão): ligue ao elemento de dentro.',
     ]
     const mermaidRules = [
       '- Responda SOMENTE com um bloco ```mermaid contendo o diagrama. Nada antes nem depois.',
@@ -189,6 +190,9 @@ export class DiagramGeneratorService {
       let graph
       try {
         graph = parseGraph(block[1])
+        // a boundary has no connection points in the editor: arrows to one are dropped
+        const boundaries = new Set(graph.nodes.filter((n) => n.type === 'boundary').map((n) => n.id))
+        graph.edges = graph.edges.filter((e) => !boundaries.has(e.source) && !boundaries.has(e.target))
       } catch (err) {
         throw new BadRequestException(`O desenho gerado não é válido: ${(err as Error).message}`)
       }

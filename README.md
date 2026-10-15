@@ -136,6 +136,22 @@ Em **Ferramentas & plugins → OpenSpec** você acompanha as specs e as mudança
 
 **Arquivos do OpenSpec.** O painel lê o `openspec/` do projeto. Criar uma mudança a partir de uma proposta revisada, editar specs e instalar o OpenSpec gravam só nos caminhos do OpenSpec, com confirmação (veja "Escrita de arquivos do OpenSpec"). Implementar e arquivar continuam sendo prompts para o seu Claude Code no terminal. Os status manuais (em revisão, impedida, aprovada etc.) ficam no `~/.agentic-toolkit` desta máquina, e não são compartilhados com o time ainda.
 
+## Arquitetura viva
+
+Em **Arquitetura → Arquitetura viva** (Adobe Commerce e Salesforce B2C) fica o desenho C4 da plataforma, montado a partir do mapeamento do projeto, sem IA:
+
+- **Adobe Commerce**:
+  - pessoas e sistemas que chamam as APIs;
+  - a stack da loja: storefront com o tema, admin, APIs REST e GraphQL, crons e consumers, banco, busca, RabbitMQ, Redis e Varnish, quando o projeto os usa;
+  - os módulos do projeto e as extensões, cada um ligado ao que ele usa (rotas, endpoints, resolvers, crons, filas).
+- **Salesforce B2C**:
+  - storefront, Business Manager, jobs e SCAPI/OCAPI;
+  - o **cartridge path** na ordem do site;
+  - os serviços externos (`LocalServiceRegistry`), cada um ligado ao cartucho que o chama.
+- **Ao vivo**: o desenho segue cada nova análise ("Analisar de novo" busca as mudanças e analisa). A tela confere a cada 15 segundos e avisa quando a arquitetura mudou. As caixas podem ser arrastadas, e o arranjo é mantido quando o conteúdo muda. Clicar num elemento mostra o que foi mapeado nele.
+- **Desenhada pelo Claude**: "Desenhar com o Claude" parte do mapeamento e lê o código para completar o que ele não mostra: integrações com sistemas externos (direção, gatilho, protocolo), webhooks, jobs e integrações definidas mas sem uso. Para isso usa as skills "Arquitetura C4", "Desenho no canvas do toolkit", "Descoberta de integrações" e as de arquitetura e integrações da plataforma. A versão do Claude fica marcada como desatualizada quando o projeto é analisado de novo. Há a opção de redesenhar sozinha após cada análise, que tem custo de uso do Claude Code.
+- **Abrir no editor de diagramas**: copia a versão em tela para Diagramas, para editar à vontade.
+
 ## Diagramas de arquitetura
 
 Em **Ferramentas & plugins → Diagramas de arquitetura** você desenha modelos de duas formas, com salvamento automático:
@@ -307,7 +323,7 @@ Toda funcionalidade que roda o Claude Code recebe **skills** do Agentic Toolkit,
 
 | Grupo | Skills |
 |---|---|
-| Comuns | investigação do código, refinamento de demandas, entrega de tarefas, escrita OpenSpec, arquitetura C4, diagramas Mermaid, documentação técnica |
+| Comuns | investigação do código, refinamento de demandas, entrega de tarefas, escrita OpenSpec, arquitetura C4, diagramas Mermaid, desenho no canvas do toolkit, descoberta de integrações, documentação técnica |
 | Adobe Commerce | módulos, plugins/observers/DI, dados (schema, patches, EAV), frontend (layout, templates, JS), APIs e integrações, admin/configuração/ACL, cron/filas/indexers, carrinho/checkout/pedido, qualidade e testes, arquitetura da loja |
 | Salesforce B2C | controllers SFRA, cartuchos e módulos, hooks/carrinho/pedido, ISML/textos/assets, metadata e Business Manager, serviços e integrações, jobs, qualidade e testes, deploy e upload, arquitetura da loja |
 

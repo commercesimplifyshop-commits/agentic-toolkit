@@ -372,6 +372,29 @@ export const ACTIONS = {
       if (b.comments !== undefined && (!Array.isArray(b.comments) || b.comments.length > 100)) fail('Até 100 comentários por revisão', 'input.pr-comments')
     },
   },
+  'architecture.read': {
+    kind: 'read',
+    methods: ['GET'],
+    description: 'Arquitetura viva: o desenho da plataforma montado a partir do mapeamento do projeto',
+    validate: requireWorkspace,
+  },
+  'architecture.write': {
+    kind: 'data-write',
+    methods: ['PUT', 'POST', 'DELETE'],
+    description: 'Guarda o arranjo da arquitetura viva, a opção de redesenho automático, ou copia uma versão para Diagramas (diretório de dados do Agentic Toolkit)',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.positions !== undefined && (typeof b.positions !== 'object' || b.positions === null || Object.keys(b.positions).length > 400)) fail('Posições inválidas', 'input.architecture-positions')
+      if (b.from !== undefined && !['live', 'claude'].includes(String(b.from))) fail('Versão inválida', 'input.architecture-from')
+    },
+  },
+  'architecture.claude': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'O Claude Code (somente leitura do código) desenha a arquitetura da plataforma a partir do mapeamento; o resultado vai para Diagramas',
+    validate: requireWorkspace,
+  },
   'refine.read': {
     kind: 'read',
     methods: ['GET'],

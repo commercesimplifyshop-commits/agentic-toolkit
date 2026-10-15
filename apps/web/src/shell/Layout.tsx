@@ -33,6 +33,7 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Arquitetura',
     items: [
+      { to: 'arquitetura-viva', label: 'Arquitetura viva', icon: '◉' },
       { to: 'modules', label: 'Módulos & extensões', icon: '▦', count: (o) => ({ value: o.modules.byOrigin.custom }) },
       { to: 'integrations/api', label: 'APIs REST & GraphQL', icon: '⇄', count: (o) => ({ value: (o.integration.byKind.rest ?? 0) + (o.integration.byKind.graphql ?? 0) }) },
       { to: 'integrations/plugins', label: 'Plugins & preferences', icon: '⟲', count: (o) => ({ value: (o.integration.byKind.plugin ?? 0) + (o.integration.byKind.preference ?? 0) }) },
@@ -95,6 +96,7 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
   {
     title: 'Arquitetura',
     items: [
+      { to: 'arquitetura-viva', label: 'Arquitetura viva', icon: '◉' },
       { to: 'sfcc/cartridges', label: 'Cartuchos & dependências', icon: '▦' },
       { to: 'sfcc/controllers', label: 'Controllers & rotas', icon: '⌁' },
       { to: 'sfcc/templates', label: 'Templates ISML', icon: '▤' },
@@ -162,7 +164,7 @@ export function Layout() {
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
   const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub.startsWith('refinamento/') ? 'Refinamento' : sub.startsWith('git/pr/') ? 'Pull request' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
-  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams'].includes(sub)
+  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams', 'arquitetura-viva'].includes(sub)
 
   return (
     <div className="sf-root">

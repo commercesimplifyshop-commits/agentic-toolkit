@@ -28,6 +28,8 @@ import { GitOpsController } from './gitops/gitops.controller'
 import { GitOpsService } from './gitops/gitops.service'
 import { GitHubController } from './gitops/github.controller'
 import { GitHubService } from './gitops/github.service'
+import { LiveArchitectureController } from './diagrams/live-architecture.controller'
+import { LiveArchitectureService } from './diagrams/live-architecture.service'
 import { RefineController } from './refine/refine.controller'
 import { WorkspaceEnvService } from './settings/workspace-env.service'
 import { WorkspaceSettingsController } from './settings/workspace-settings.controller'
@@ -61,7 +63,7 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, GitHubController, RefineController, WorkspaceSettingsController, SkillsController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, GitHubController, LiveArchitectureController, RefineController, WorkspaceSettingsController, SkillsController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
@@ -98,6 +100,7 @@ import { ZipService } from './workspaces/zip.service'
     SecurityBulletinTopic,
     GitOpsService,
     GitHubService,
+    LiveArchitectureService,
     RefineService,
     WorkspaceEnvService,
     WorkspaceSettingsService,

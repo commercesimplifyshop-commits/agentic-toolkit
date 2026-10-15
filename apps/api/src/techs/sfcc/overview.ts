@@ -39,6 +39,8 @@ export interface SfccOverview {
   hooks: { cartridge: string; name: string; script?: string }[]
   jobs: { id: string; file: string }[]
   services: string[]
+  /** Which cartridge creates each service (a cartridge may call several) */
+  serviceUses: { service: string; cartridge: string }[]
   sites: string[]
   /** Cartridge path per site, from the site import (sites/<site>/site.xml), when the project versions it */
   cartridgePaths: { site: string; path: string[] }[]
@@ -123,12 +125,17 @@ export function sfccOverview(rofs: ReadOnlyFs, root: string, name: string): Sfcc
   }
 
   const services = new Set<string>()
+  const serviceUses = new Map<string, { service: string; cartridge: string }>()
   let budget = SCRIPT_BUDGET
   for (const f of scriptFiles) {
     if (budget <= 0) break
     const src = read(f)
     budget -= src.length
-    for (const x of src.matchAll(/LocalServiceRegistry\.createService\(\s*['"]([^'"]+)['"]/g)) services.add(x[1])
+    const cartridge = f.match(CARTRIDGE)?.[1] ?? ''
+    for (const x of src.matchAll(/LocalServiceRegistry\.createService\(\s*['"]([^'"]+)['"]/g)) {
+      services.add(x[1])
+      if (cartridge) serviceUses.set(`${x[1]}|${cartridge}`, { service: x[1], cartridge })
+    }
   }
 
   const sites = new Set<string>()
@@ -192,6 +199,7 @@ export function sfccOverview(rofs: ReadOnlyFs, root: string, name: string): Sfcc
     hooks,
     jobs,
     services: Array.from(services).sort(),
+    serviceUses: [...serviceUses.values()],
     sites: Array.from(sites).sort(),
     cartridgePaths,
     attributes: Array.from(attrs, ([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
