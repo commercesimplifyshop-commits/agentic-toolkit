@@ -185,7 +185,7 @@ function toFlow(g: Graph) {
   // a line that leaves a layer stops at the border of the other layer, not at a box inside it, like the
   // reference drawings; the lines between the same two ends become one. Lines inside a layer stay.
   const centerIds = new Set(centerLayers.map((l) => l.id))
-  const toLayer = (n: GNode, other: GNode) => (n.parent && centerIds.has(n.parent) && other.parent !== n.parent && other.id !== n.parent ? byId.get(n.parent)! : n)
+  const toLayer = (n: GNode, other: GNode) => (n.parent && centerIds.has(n.parent) && other.type !== 'person' && other.parent !== n.parent && other.id !== n.parent ? byId.get(n.parent)! : n)
   const merged = new Map<string, { e: Graph['edges'][number]; s: GNode; t: GNode; labels: string[] }>()
   for (const e of g.edges) {
     const s0 = byId.get(e.source)
@@ -226,8 +226,11 @@ function toFlow(g: Graph) {
           l.x2 > Math.min(a.x1, b.x1),
       )
       around = between
-      sh = between ? 'sl' : down ? 'sb' : 'st'
-      th = between ? 'tl' : down ? 'tt' : 'tb'
+      // around on the side the target box is on: the admin, at the right of its layer, gets the line from the right
+      const mid = centerLayers.length ? (Math.min(...centerLayers.map((l) => l.x1)) + Math.max(...centerLayers.map((l) => l.x2))) / 2 : 0
+      const side = (b.x1 + b.x2) / 2 > mid ? 'r' : 'l'
+      sh = between ? `s${side}` : down ? 'sb' : 'st'
+      th = between ? `t${side}` : down ? 'tt' : 'tb'
     }
     // a line that goes around a layer runs next to the side columns: only the protocol, to keep it clear
     const label = around ? (e.tech ?? '') : labels.length > 2 ? `${labels[0]} +${labels.length - 1}` : labels.join(' · ')

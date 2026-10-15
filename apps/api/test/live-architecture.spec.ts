@@ -60,6 +60,7 @@ describe('Arquitetura viva', () => {
       // the parts of the store carry the project's routes
       expect(node('Página de produto')).toMatchObject({ parent: 'b_store', tech: '1 rota do projeto' })
       expect(node('Carrinho').tech).toBe('base SFRA')
+      expect(node('Business Manager').parent).toBe('b_core')
       // the cartridges and services are the evidence of each external system, at the sides
       expect(v.graph.nodes.some((n) => n.type === 'external' && n.parent === 'b_cliente')).toBe(true)
       expect(v.details[node('Frete').id].lines.join(' ')).toContain('frete.http.cotacao')
@@ -89,10 +90,11 @@ describe('Arquitetura viva', () => {
       modules: { byOrigin: { custom: 2 } },
       extensions: { list: [{ name: 'clearsale/module-integration', version: '3.1.0' }] },
     }
-    const { svc, generator } = service({ id: 'w', name: 'loja', tech: 'adobe-commerce', status: 'analyzed', root: '/x', edition: 'Adobe Commerce', version: '2.4.8', ownVendors: ['Loja'], analyzedAt: '2026-10-15T10:00:00Z' }, { overview, map: { items } })
+    const { svc, generator, data } = service({ id: 'w', name: 'loja', tech: 'adobe-commerce', status: 'analyzed', root: '/x', edition: 'Adobe Commerce', version: '2.4.8', ownVendors: ['Loja'], analyzedAt: '2026-10-15T10:00:00Z' }, { overview, map: { items } })
     const v = await svc.view('w')
     expect(() => parseGraph(v.graph)).not.toThrow()
     const byTitle = (t: string) => v.graph.nodes.find((n) => n.title === t)
+    const e0 = (from: string, to: string) => v.graph.edges.find((x) => x.source === byTitle(from)!.id && x.target === byTitle(to)!.id)
     // personas, the platform in layers and the external systems at the sides
     expect(byTitle('Comprador B2B')?.type).toBe('person')
     expect(byTitle('Storefront · tema Hyvä')?.id).toBe('b_store')
@@ -105,6 +107,9 @@ describe('Arquitetura viva', () => {
     expect(byTitle('Adobe Commerce 2.4.8')?.id).toBe('b_core')
     expect(byTitle('Carrinho e checkout')).toMatchObject({ parent: 'b_core', tech: '1 customização' })
     expect(byTitle('B2B')?.parent).toBe('b_core')
+    // the admin is inside the platform, and the team goes straight to it
+    expect(byTitle('Admin')?.parent).toBe('b_core')
+    expect(e0('Equipe da loja', 'Admin')).toBeTruthy()
     expect(byTitle('Live Search')).toMatchObject({ parent: 'b_core', tech: 'SaaS Adobe' })
     expect(byTitle('Busca')).toMatchObject({ parent: 'b_infra', tech: 'OpenSearch 2' })
     expect(byTitle('Filas')?.tech).toBe('RabbitMQ')
@@ -132,6 +137,15 @@ describe('Arquitetura viva', () => {
     // the arrangement the person makes stays; Claude gets the macro brief with the evidence
     svc.savePositions('w', { b_store: { x: 999, y: 111 } })
     expect((await svc.view('w')).graph.nodes.find((n) => n.id === 'b_store')).toMatchObject({ x: 999, y: 111 })
+    // a position saved while the box was in another layer does not hold
+    svc.savePositions('w', { t_cart: { x: 5, y: 6 } })
+    const file = path.join(data, 'live-architecture.json')
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'))
+    expect(saved.positions.t_cart.in).toBe('b_store')
+    fs.writeFileSync(file, JSON.stringify({ ...saved, positions: { ...saved.positions, t_cart: { x: 5, y: 6, in: null }, c_admin: { x: 1, y: 2 } } }))
+    const after = (await svc.view('w')).graph.nodes
+    expect(after.find((n) => n.id === 't_cart')).not.toMatchObject({ x: 5, y: 6 })
+    expect(after.find((n) => n.id === 'c_admin')).not.toMatchObject({ x: 1, y: 2 })
     expect(() => svc.savePositions('w', { '../x': { x: 1, y: 1 } })).toThrow()
     await svc.drawWithClaude('w')
     const request = (generator.start as jest.Mock).mock.calls[0][1].request as string

@@ -15,10 +15,9 @@ Siga estas regras em todo desenho novo e em toda atualização depois de uma nov
 |---|---|---|---|
 | Topo | (sem grupo) | `person` | Cliente, Equipe da loja e, quando o código mostra, Comprador B2B e Lojista do marketplace. Sistemas que só chamam as APIs também ficam aqui, como `external` sem grupo. |
 | Entrada | `c_cdn` | `container`, sem grupo | CDN ou cache de página: Fastly, Varnish ou eCDN. |
-| Entrada | `c_admin` (Adobe) ou `c_bm` (Salesforce) | `container`, sem grupo | Admin ou Business Manager. |
 | 1ª camada | `b_store` | `boundary` | Storefront. Título: "Storefront · tema X" ou "Storefront · SFRA" / "Storefront · PWA Kit". Caixas: Home e navegação, Catálogo e busca, Página de produto, Carrinho, Checkout, Conta do cliente, Conta empresa (B2B). |
 | 2ª camada | `b_api` | `boundary` | APIs e processamento: API REST, GraphQL, SCAPI / OCAPI, Webhooks de entrada, Crons, Consumers de fila, Jobs, Adobe I/O Events. |
-| 3ª camada | `b_core` | `boundary` | A plataforma. Título: "Adobe Commerce 2.4.x" ou "Salesforce B2C Commerce". Caixas: os domínios (Catálogo, Carrinho e checkout, Pedidos, Clientes, Pagamentos, Preços e promoções, Estoque, Entrega, Conteúdo, B2B) e os serviços SaaS do fabricante, com tech `SaaS Adobe` ou `SaaS Salesforce`. |
+| 3ª camada | `b_core` | `boundary` | A plataforma. Título: "Adobe Commerce 2.4.x" ou "Salesforce B2C Commerce". Caixas: os domínios (Catálogo, Carrinho e checkout, Pedidos, Clientes, Pagamentos, Preços e promoções, Estoque, Entrega, Conteúdo, B2B) e os serviços SaaS do fabricante, com tech `SaaS Adobe` ou `SaaS Salesforce`. Por último, o Admin (`c_admin`) ou o Business Manager (`c_bm`): fazem parte da plataforma, nunca ficam soltos. |
 | 4ª camada | `b_infra` | `boundary` | Infraestrutura (só no Adobe Commerce): Banco de dados, Busca, Filas, Cache e sessão, Mídia. No Salesforce B2C a infraestrutura é da plataforma: omita esta camada. |
 | Lateral esquerda | `b_cliente` | `boundary` | Sistemas do cliente: ERP, OMS, PIM, nota fiscal, integrações próprias. Tipo `external`. |
 | Lateral direita | `b_saas` | `boundary` | SaaS e parceiros: pagamento, frete, antifraude, busca, marketing, atendimento, avaliações. Tipo `external`. |
@@ -35,7 +34,7 @@ Uma camada vazia não entra no desenho. Não crie grupos fora desta lista. Um gr
 ## Conexões
 
 - **Entre camadas:** ligue os grupos inteiros, não caixa a caixa: `c_cdn → b_store`, `b_store → b_core`, `b_api → b_core`, `b_core → b_infra`.
-- **Personas:** cada persona liga ao que acessa: o cliente à `c_cdn` (ou ao `b_store`), a equipe ao `c_admin`/`c_bm`, quem chama as APIs ao `b_api`.
+- **Personas:** cada persona liga ao que acessa: o cliente à `c_cdn` (ou ao `b_store`), a equipe direto à caixa `c_admin`/`c_bm` dentro de `b_core`, quem chama as APIs ao `b_api`.
 - **Sistemas externos:** ligam à caixa que os dispara, porque a direção e o gatilho são a informação principal:
   - o checkout chama o pagamento, o frete e o antifraude;
   - os crons e jobs sincronizam com o ERP (tracejado);

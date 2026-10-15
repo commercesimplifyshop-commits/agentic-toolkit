@@ -20,10 +20,12 @@ export interface NodeDetail {
 
 /** Version of the layout: positions dragged on an older one are dropped */
 const LAYOUT = 2
+/** Boxes that left the entry row for the platform layer, after positions started being kept */
+const MOVED_INTO_PLATFORM = ['c_admin', 'c_bm']
 
 interface Stored {
   /** Positions the person dragged nodes to: kept while the content updates */
-  positions: Record<string, { x: number; y: number }>
+  positions: Record<string, { x: number; y: number; /** the layer it was dragged in: the position only holds there */ in?: string | null }>
   layout?: number
   /** The version Claude drew, and the analysis it was based on */
   claude?: { diagramId: string; basedOn: string | null; at: string }
@@ -252,8 +254,6 @@ export class LiveArchitectureService {
       details[nodeId] = { title, lines: ['Customizações do projeto (contexto):', ...lines((i) => i.zone === zone)] }
     }
     if (b2b) nodes.push({ id: 't_b2b', type: 'container', title: 'Conta empresa e cotações', tech: 'B2B', parent: LAYERS.store })
-    nodes.push({ id: 'c_admin', type: 'container', title: 'Admin', tech: custom(items.filter((i) => i.zone === 'admin').length) })
-    details.c_admin = { title: 'Admin', lines: ['Customizações do projeto (contexto):', ...lines((i) => i.zone === 'admin')] }
 
     // APIs and processing
     nodes.push({ id: LAYERS.api, type: 'boundary', title: 'APIs e processamento' })
@@ -293,6 +293,10 @@ export class LiveArchitectureService {
     for (const [re, nodeId, title] of ADOBE_SAAS) {
       if ([...modulesInUse, ...extensions.map((e) => e.name)].some((m) => re.test(m))) nodes.push({ id: nodeId, type: 'container', title, tech: 'SaaS Adobe', parent: LAYERS.core })
     }
+
+    // the admin is part of the platform: the last box of its layer, where the team's line comes in
+    nodes.push({ id: 'c_admin', type: 'container', title: 'Admin', tech: custom(items.filter((i) => i.zone === 'admin').length), parent: LAYERS.core })
+    details.c_admin = { title: 'Admin', lines: ['Customizações do projeto (contexto):', ...lines((i) => i.zone === 'admin')] }
 
     // infrastructure
     nodes.push({ id: LAYERS.infra, type: 'boundary', title: o.magento.cloud ? 'Infraestrutura · Adobe Commerce Cloud' : 'Infraestrutura' })
@@ -371,8 +375,6 @@ export class LiveArchitectureService {
       nodes.push({ id: nodeId, type: 'container', title, tech: routes.length ? `${routes.length} ${routes.length === 1 ? 'rota' : 'rotas'} do projeto` : headless ? 'PWA Kit' : 'base SFRA', parent: LAYERS.store })
       details[nodeId] = { title, lines: ['Rotas do projeto (contexto):', ...routes.slice(0, 40)] }
     }
-    nodes.push({ id: 'c_bm', type: 'container', title: 'Business Manager', tech: `${o.sites.length} ${o.sites.length === 1 ? 'site' : 'sites'}` })
-    details.c_bm = { title: 'Business Manager', lines: [...o.sites.map((s) => `site ${s}`), ...o.attributes.map((a) => `${a.count} atributo(s) em ${a.type}`)] }
 
     // APIs and processing
     nodes.push({ id: LAYERS.api, type: 'boundary', title: 'APIs e processamento' })
@@ -393,6 +395,8 @@ export class LiveArchitectureService {
       nodes.push({ id: nodeId, type: 'container', title, tech: n ? `${n} ${n === 1 ? 'atributo custom' : 'atributos custom'}` : 'nativo', parent: LAYERS.core })
       details[nodeId] = { title, lines: attrs.map((a) => `${a.count} atributo(s) custom em ${a.type}`) }
     }
+    nodes.push({ id: 'c_bm', type: 'container', title: 'Business Manager', tech: `${o.sites.length} ${o.sites.length === 1 ? 'site' : 'sites'}`, parent: LAYERS.core })
+    details.c_bm = { title: 'Business Manager', lines: [...o.sites.map((s) => `site ${s}`), ...o.attributes.map((a) => `${a.count} atributo(s) em ${a.type}`)] }
 
     this.addIntegrations(found, { nodes, details, edge, to: { checkout: 't_checkout', browse: LAYERS.store, search: 't_plp', jobs: has('c_jobs') ? 'c_jobs' : undefined, api: 'c_scapi', webhook: has('c_webhook') ? 'c_webhook' : undefined, admin: 'c_bm' } })
 
@@ -440,7 +444,16 @@ export class LiveArchitectureService {
     const ws = this.workspaces.get(id)
     const built = await this.build(id)
     const stored = this.read(id)
-    const graph: Graph = { ...built.graph, nodes: built.graph.nodes.map((n) => ({ ...n, ...(stored.positions[n.id] ?? {}) })) }
+    const graph: Graph = {
+      ...built.graph,
+      nodes: built.graph.nodes.map((n) => {
+        const p = stored.positions[n.id]
+        // a box that moved into another layer starts again at its place in the new one; positions saved before
+        // the layer was recorded hold, except the admin and Business Manager, which went into the platform
+        const holds = p && (p.in === undefined ? !MOVED_INTO_PLATFORM.includes(n.id) : p.in === (n.parent ?? null))
+        return holds ? { ...n, x: p.x, y: p.y } : n
+      }),
+    }
     const basedOn = ws.analyzedAt ?? null
     const claudeDiagram = stored.claude ? this.diagrams.list(id).find((d) => d!.id === stored.claude!.diagramId) : undefined
     const jobId = this.running.get(id)
@@ -472,10 +485,11 @@ export class LiveArchitectureService {
   savePositions(id: string, positions: unknown) {
     if (!positions || typeof positions !== 'object') throw new BadRequestException('Posições inválidas')
     const stored = this.read(id)
+    const graph = this.cache.get(id)?.graph
     for (const [nodeId, p] of Object.entries(positions as Record<string, unknown>)) {
       const { x, y } = (p ?? {}) as { x?: unknown; y?: unknown }
       if (!/^[A-Za-z0-9_-]{1,40}$/.test(nodeId) || typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y) || Math.abs(x) > 100_000 || Math.abs(y) > 100_000) throw new BadRequestException('Posição inválida')
-      stored.positions[nodeId] = { x: Math.round(x), y: Math.round(y) }
+      stored.positions[nodeId] = { x: Math.round(x), y: Math.round(y), in: graph?.nodes.find((n) => n.id === nodeId)?.parent ?? null }
     }
     this.write(id, stored)
     return { ok: true }
@@ -514,7 +528,7 @@ export class LiveArchitectureService {
     const basedOn = ws.analyzedAt ?? null
     const request = [
       `Arquitetura viva de ${ws.name}: a arquitetura MACRO da plataforma (C4 de contêineres), como ela está hoje no código.`,
-      'Siga a skill "Arquitetura de referência" (reference-architecture): ela define o formato, sempre o mesmo em desenhos novos e atualizações. Em resumo: desenhe no formato de uma arquitetura de referência, em camadas. Use exatamente estes ids de grupo (boundary): b_store (storefront, com as partes da loja: home, catálogo e busca, produto, carrinho, checkout, conta), b_api (APIs e processamento: REST, GraphQL, SCAPI/OCAPI, webhooks de entrada, crons, consumers, jobs), b_core (a plataforma de commerce, com seus domínios: catálogo, carrinho e checkout, pedidos, clientes, pagamentos, preços e promoções, estoque… e os serviços SaaS do fabricante, com tech "SaaS Adobe" ou "SaaS Salesforce"), b_infra (banco, busca, cache, filas; omita no Salesforce B2C), b_cliente (sistemas do cliente: ERP, OMS, PIM, nota fiscal) e b_saas (SaaS e parceiros: pagamento, frete, antifraude, marketing, atendimento…). Personas sem grupo; a CDN com id c_cdn e o admin/Business Manager com id c_admin/c_bm, fora dos grupos. Caixas com títulos curtos; a contagem ou a tecnologia vai em tech. Entre as camadas da plataforma, ligue os grupos inteiros (ex.: c_cdn → b_store, b_store → b_core, b_api → b_core, b_core → b_infra), não caixa a caixa; ligue a uma caixa só a conexão com um sistema externo ou persona que entra por ela (ex.: o checkout chama o gateway de pagamento). Rótulos curtos.',
+      'Siga a skill "Arquitetura de referência" (reference-architecture): ela define o formato, sempre o mesmo em desenhos novos e atualizações. Em resumo: desenhe no formato de uma arquitetura de referência, em camadas. Use exatamente estes ids de grupo (boundary): b_store (storefront, com as partes da loja: home, catálogo e busca, produto, carrinho, checkout, conta), b_api (APIs e processamento: REST, GraphQL, SCAPI/OCAPI, webhooks de entrada, crons, consumers, jobs), b_core (a plataforma de commerce, com seus domínios: catálogo, carrinho e checkout, pedidos, clientes, pagamentos, preços e promoções, estoque… e os serviços SaaS do fabricante, com tech "SaaS Adobe" ou "SaaS Salesforce"), b_infra (banco, busca, cache, filas; omita no Salesforce B2C), b_cliente (sistemas do cliente: ERP, OMS, PIM, nota fiscal) e b_saas (SaaS e parceiros: pagamento, frete, antifraude, marketing, atendimento…). Personas sem grupo; a CDN com id c_cdn, fora dos grupos; o admin/Business Manager com id c_admin/c_bm, como a última caixa dentro de b_core, e a equipe da loja ligada direto a ele. Caixas com títulos curtos; a contagem ou a tecnologia vai em tech. Entre as camadas da plataforma, ligue os grupos inteiros (ex.: c_cdn → b_store, b_store → b_core, b_api → b_core, b_core → b_infra), não caixa a caixa; ligue a uma caixa só a conexão com um sistema externo ou persona que entra por ela (ex.: o checkout chama o gateway de pagamento). Rótulos curtos.',
       'NÃO desenhe módulos, cartuchos, plugins, observers, preferences, controllers ou classes: eles são a evidência para descobrir, nomear e conectar os serviços e integrações, e podem aparecer só na descrição de um elemento.',
       'Parta deste levantamento, feito do mapeamento do projeto (é a base: mantenha o que estiver certo, corrija e complete):',
       built.summary,
