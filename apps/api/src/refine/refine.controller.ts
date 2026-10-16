@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common'
 import { Action } from '../readonly/actions'
 import { RefineService, type Refinement, type Split } from './refine.service'
 
@@ -21,22 +21,36 @@ export class RefineController {
     return this.refine.get(id, cardId)
   }
 
+  /** Attaches a diagram of the toolkit to the task (from the screen, the assistant or the MCP) */
+  @Post('cards/:cardId/attached')
+  @Action('refine.write')
+  attach(@Param('id') id: string, @Param('cardId') cardId: string, @Body() body: { kind?: string; refId?: string }, @Headers('x-agentic-client') client?: string) {
+    return this.refine.attach(id, cardId, body, client === 'mcp' ? 'IA via MCP' : client === 'assistente' ? 'assistente' : 'usuário')
+  }
+
+  @Delete('cards/:cardId/attached/:refId')
+  @Action('refine.write')
+  detach(@Param('id') id: string, @Param('cardId') cardId: string, @Param('refId') refId: string) {
+    return this.refine.detach(id, cardId, refId)
+  }
+
   @Post('cards')
   @Action('refine.write')
-  create(@Param('id') id: string, @Body() body: { message?: string; attachments?: Attachments }) {
-    return this.refine.create(id, body)
+  create(@Param('id') id: string, @Body() body: { message?: string; attachments?: Attachments }, @Query('async') background?: string) {
+    // ?async=1: the card comes back at once and Claude answers in the background (the assistant and the MCP use it)
+    return this.refine.create(id, body, background === '1')
   }
 
   @Post('cards/:cardId/messages')
   @Action('refine.write')
-  message(@Param('id') id: string, @Param('cardId') cardId: string, @Body() body: { message?: string; attachments?: Attachments }) {
-    return this.refine.message(id, cardId, body)
+  message(@Param('id') id: string, @Param('cardId') cardId: string, @Body() body: { message?: string; attachments?: Attachments }, @Query('async') background?: string) {
+    return this.refine.message(id, cardId, body, background === '1')
   }
 
   @Post('cards/:cardId/refine')
   @Action('refine.write')
-  generate(@Param('id') id: string, @Param('cardId') cardId: string) {
-    return this.refine.refine(id, cardId)
+  generate(@Param('id') id: string, @Param('cardId') cardId: string, @Query('async') background?: string) {
+    return this.refine.refine(id, cardId, background === '1')
   }
 
   @Put('cards/:cardId')

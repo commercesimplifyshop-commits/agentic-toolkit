@@ -21,7 +21,7 @@ export class ReadOnlyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>()
     const id = this.reflector.get<ActionId | undefined>(ACTION_KEY, context.getHandler())
-    const base = { method: req.method, url: req.originalUrl, workspace: req.params?.id }
+    const base = { method: req.method, url: req.originalUrl, workspace: req.params?.id, ...(['mcp', 'assistente'].includes(String(req.headers?.['x-agentic-client'])) ? { client: String(req.headers['x-agentic-client']) } : {}) }
 
     const block = (rule: string, detail: string, action = id ?? 'desconhecida', kind = '—'): never => {
       this.audit.record({ ...base, action, kind, verdict: 'blocked', rule, detail })

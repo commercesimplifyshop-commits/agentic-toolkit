@@ -3,16 +3,20 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api, type GitAuth, type Providers, type Workspace } from '../api'
 import { notifySettingsChanged } from '../prereqs'
 import { SkillsSettings } from '../skills'
+import { InterfaceSettings } from '../settings/InterfaceSettings'
+import { McpSettings } from '../settings/McpSettings'
 import { useShell } from '../store'
 
 export function SettingsPage() {
+  const { id = '' } = useParams()
+  const tech = useShell((s) => s.workspaces.find((w) => w.id === id)?.tech)
   return (
     <div className="sf-page">
       <div className="sf-page-head">
         <div className="sf-page-icon">⚙</div>
         <div className="sf-page-title">
           <h1>Configurações</h1>
-          <p>O workspace (pasta, projeto, repositório e variáveis), o provedor de IA e as skills do Claude. As funcionalidades que dependem de algo daqui trazem um link direto para a seção.</p>
+          <p>O workspace (pasta, projeto, repositório e variáveis), o provedor de IA, as skills do Claude, a interface e o MCP para conectar outra IA. As funcionalidades que dependem de algo daqui trazem um link direto para a seção.</p>
         </div>
       </div>
       <WorkspaceSettings />
@@ -24,6 +28,12 @@ export function SettingsPage() {
       </div>
       <div id="secao-skills" className="sf-ws-anchor" style={{ marginTop: 16 }}>
         <SkillsSettings />
+      </div>
+      <div id="secao-interface" className="sf-ws-anchor" style={{ marginTop: 16 }}>
+        <InterfaceSettings tech={tech} />
+      </div>
+      <div id="secao-mcp" className="sf-ws-anchor" style={{ marginTop: 16 }}>
+        <McpSettings />
       </div>
     </div>
   )

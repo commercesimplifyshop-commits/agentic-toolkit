@@ -4,6 +4,10 @@ import { FEATURE_NEEDS, featureOf, PrereqNotice } from './prereqs'
 import { IdeLayer } from './ide/IdeLayer'
 import { LogoMark } from './Logo'
 import { initials, useShell } from './store'
+import { AutoBlocks } from './components/AutoBlocks'
+import { DevToolbar } from './components/DevToolbar'
+import { InterfaceAssistant } from './components/InterfaceAssistant'
+import { featureOfPath, isEnabled, useUi, useUiCommands, type UiPrefs } from './ui-prefs'
 
 interface NavItem {
   to: string
@@ -41,6 +45,10 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
       { to: 'integrations/async', label: 'Crons & filas', icon: '◷', count: (o) => ({ value: (o.integration.byKind.cron ?? 0) + (o.integration.byKind.queue ?? 0) }) },
       { to: 'integrations/routes', label: 'Rotas & controllers', icon: '⌁', count: (o) => ({ value: o.integration.byKind.route ?? 0 }) },
     ],
+  },
+  {
+    title: 'IA',
+    items: [{ to: 'ia/harness', label: 'Harness da IA', icon: '◇' }],
   },
   {
     title: 'Ferramentas & plugins',
@@ -106,6 +114,10 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    title: 'IA',
+    items: [{ to: 'ia/harness', label: 'Harness da IA', icon: '◇' }],
+  },
+  {
     title: 'Instância',
     items: [
       { to: 'sfcc/instance', label: 'Perfil da instância', icon: '☁' },
@@ -118,6 +130,32 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
 function sectionsOf(tech?: string) {
   return tech === 'salesforce-b2c' ? SFCC_SECTIONS : SECTIONS
 }
+
+/**
+ * The menu as the person arranged it (Configurações → Interface, the assistant or the MCP): features
+ * turned off leave it, each one may have a new name, another section and another place.
+ */
+function arrangedMenu(tech: string | undefined, prefs: UiPrefs) {
+  const items = sectionsOf(tech).flatMap((section, si) =>
+    section.items.map((item, ii) => ({ item, id: item.to || 'overview', section: section.title ?? '', base: si * 100 + ii })),
+  )
+  const order = prefs.menu.order
+  const rank = (x: { id: string; base: number }) => {
+    const i = order.indexOf(x.id)
+    return i >= 0 ? i : order.length + x.base
+  }
+  const visible = items
+    .filter((x) => isEnabled(prefs, x.id))
+    .map((x) => ({ ...x, section: prefs.menu.sections[x.id] ?? x.section, label: prefs.labels[x.id] ?? x.item.label }))
+    .sort((a, b) => (order.length ? rank(a) - rank(b) : a.base - b.base))
+  // sections in the order of their first feature
+  const groups = new Map<string, typeof visible>()
+  for (const x of visible) groups.set(x.section, [...(groups.get(x.section) ?? []), x])
+  return [...groups].map(([title, list]) => ({ title, items: list }))
+}
+
+/** Every sidebar path, to find the feature a page belongs to */
+const FEATURE_IDS = [...new Set([...SECTIONS, ...SFCC_SECTIONS].flatMap((s) => s.items.map((i) => i.to || 'overview')))]
 
 const TITLES: Record<string, string> = Object.fromEntries([...SECTIONS, ...SFCC_SECTIONS].flatMap((s) => s.items.map((i) => [i.to, i.label])))
 
@@ -140,6 +178,25 @@ export function Layout() {
   const overview = useShell((s) => s.overviews[id])
   const ws = workspaces.find((w) => w.id === id)
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  const prefs = useUi((s) => s.prefs)
+  const uiNotice = useUi((s) => s.notice)
+  const clearUiNotice = useUi((s) => s.clearNotice)
+  const applyUi = useUi((s) => s.apply)
+
+  // the assistant or an AI through the MCP opening a screen (a diagram, a card, the API simulator)
+  const command = useUiCommands((s) => s.command)
+  useEffect(() => {
+    if (!command || Date.now() - command.at > 10_000) return
+    if (command.type === 'navigate') navigate(`/w/${command.workspace}/${command.path}`)
+    if (command.type === 'api-client-fill') navigate(`/w/${command.workspace}/api-client?route=${encodeURIComponent(command.routeId)}`)
+  }, [command, navigate])
+
+  // the interface preferences, kept in step with the assistant and the MCP while the app is open
+  useEffect(() => {
+    if (!uiNotice) return
+    const t = window.setTimeout(clearUiNotice, 6000)
+    return () => window.clearTimeout(t)
+  }, [uiNotice, clearUiNotice])
 
   const toggleCollapsed = () =>
     setCollapsed((c) => {
@@ -163,7 +220,23 @@ export function Layout() {
   }, [loaded, ws, id, navigate, loadOverview])
 
   const sub = location.pathname.replace(`/w/${id}`, '').replace(/^\//, '')
-  const title = TITLES[sub] ?? (sub === 'atualizacao' ? 'Atualização do dia' : sub.startsWith('openspec/') ? 'OpenSpec' : sub.startsWith('refinamento/') ? 'Refinamento' : sub.startsWith('git/pr/') ? 'Pull request' : sub === 'audit' ? 'Regras & auditoria' : sub === 'settings' ? 'Configurações' : 'Visão geral')
+  const title =
+    TITLES[sub] ??
+    (sub === 'atualizacao'
+      ? 'Atualização do dia'
+      : sub.startsWith('openspec/')
+        ? 'OpenSpec'
+        : sub.startsWith('refinamento/')
+          ? 'Refinamento'
+          : sub.startsWith('git/pr/')
+            ? 'Pull request'
+            : sub === 'audit'
+              ? 'Regras & auditoria'
+              : sub === 'settings'
+                ? 'Configurações'
+                : 'Visão geral')
+  const feature = featureOfPath(sub, FEATURE_IDS)
+  const featureOff = Boolean(feature && !isEnabled(prefs, feature))
   const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams', 'arquitetura-viva'].includes(sub)
 
   return (
@@ -200,27 +273,30 @@ export function Layout() {
           </button>
         </div>
         <div className="sf-side-scroll">
-          {sectionsOf(ws?.tech).map((section, i) => (
-            <div key={i}>
-              {section.title && <div className="sf-side-section">{section.title}</div>}
-              {section.items.map((item) => {
-                const count = overview && item.count?.(overview)
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to ? `/w/${id}/${item.to}` : `/w/${id}`}
-                    end={!item.to}
-                    title={collapsed ? `${item.label}${count && count.value > 0 ? ` (${count.value})` : ''}` : undefined}
-                    className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}
-                  >
-                    <span className="sf-nav-icon">{item.icon}</span>
-                    <span className="sf-nav-label">{item.label}</span>
-                    {count && count.value > 0 && <span className={`sf-nav-count ${count.tone ?? ''}`}>{count.value}</span>}
-                  </NavLink>
-                )
-              })}
-            </div>
-          ))}
+          {arrangedMenu(ws?.tech, prefs).map((section) => {
+            return (
+              <div key={section.title || 'inicio'} data-section={section.title}>
+                {section.title && <div className="sf-side-section">{section.title}</div>}
+                {section.items.map(({ item, id: featureId, label }) => {
+                  const count = overview && item.count?.(overview)
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to ? `/w/${id}/${item.to}` : `/w/${id}`}
+                      end={!item.to}
+                      data-feature={featureId}
+                      title={collapsed ? `${label}${count && count.value > 0 ? ` (${count.value})` : ''}` : undefined}
+                      className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}
+                    >
+                      <span className="sf-nav-icon">{item.icon}</span>
+                      <span className="sf-nav-label">{label}</span>
+                      {count && count.value > 0 && <span className={`sf-nav-count ${count.tone ?? ''}`}>{count.value}</span>}
+                    </NavLink>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
         <div className="sf-side-foot">
           <NavLink to={`/w/${id}/audit`} title={collapsed ? 'Regras & auditoria' : undefined} className={({ isActive }) => `sf-nav ${isActive ? 'active' : ''}`}>
@@ -241,19 +317,42 @@ export function Layout() {
         <div className="sf-topbar">
           <span>{ws?.name}</span>
           <span className="sep">›</span>
-          <b>{title}</b>
+          <b>{(feature && prefs.labels[feature] && TITLES[sub] !== undefined ? prefs.labels[feature] : undefined) ?? title}</b>
         </div>
         {ws?.status === 'analyzed' && FEATURE_NEEDS[featureOf(sub)] && (
           <div className="sf-prereq-strip">
             <PrereqNotice workspaceId={id} feature={featureOf(sub)} />
           </div>
         )}
-        <div className="sf-content" style={fullBleed ? { overflow: 'hidden' } : undefined}>
-          {ws?.status === 'analyzed' && <Outlet />}
+        <div className="sf-content" data-feature={feature ?? sub} style={fullBleed ? { overflow: 'hidden' } : undefined}>
+          {ws?.status === 'analyzed' &&
+            (featureOff ? (
+              <div className="sf-page">
+                <div className="sf-callout orange" style={{ maxWidth: 640 }}>
+                  <strong>{TITLES[sub] ?? 'Esta funcionalidade'} está desativada.</strong> Ela saiu do menu em Configurações → Interface (ou pelo assistente). Os dados dela continuam guardados.
+                  <div style={{ marginTop: 10 }}>
+                    <button className="sf-btn primary" onClick={() => void applyUi([{ type: 'feature', feature: feature!, enabled: true }])}>
+                      Reativar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Outlet />
+            ))}
         </div>
       </main>
       {/* PhpStorm navigation (Shift Shift, Alt+N, Alt+Shift+N, Ctrl+Shift+F) on every page */}
       {ws?.status === 'analyzed' && <IdeLayer workspaceId={id} />}
+      {ws?.status === 'analyzed' && <InterfaceAssistant workspaceId={id} />}
+      {ws?.status === 'analyzed' && <DevToolbar workspaceId={id} />}
+      {/* every page's sections and cards become blocks that can be moved and hidden (not the full-screen tools) */}
+      {ws?.status === 'analyzed' && <AutoBlocks feature={feature} enabled={!fullBleed && !featureOff} />}
+      {uiNotice && (
+        <div className="sf-ui-toast" onClick={clearUiNotice}>
+          {uiNotice}
+        </div>
+      )}
     </div>
   )
 }

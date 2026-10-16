@@ -768,6 +768,34 @@ export const ACTIONS = {
       }
     },
   },
+
+  'ai.harness': { kind: 'read', methods: ['GET'], description: 'Mostra o harness da IA configurada: o que roda o modelo, o que carrega e o que cada funcionalidade libera (inicia o Claude Code só até ele se apresentar)', validate: (ctx) => requireWorkspace(ctx) },
+  'ui.get': { kind: 'read', methods: ['GET'], description: 'Preferências de interface (funcionalidades e blocos)' },
+  'ui.events': { kind: 'read', methods: ['GET'], description: 'Avisa as telas abertas quando a interface muda' },
+  'ui.change': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Muda a interface: ativa/desativa funcionalidades, oculta/mostra e move blocos (gravado no diretório de dados)',
+    validate: (ctx) => {
+      const actions = (ctx.req.body ?? {}).actions
+      if (!Array.isArray(actions) || actions.length === 0 || actions.length > 40) fail('Informe de 1 a 40 mudanças', 'input.ui-actions')
+    },
+  },
+  'ui.assistant': {
+    kind: 'data-write',
+    methods: ['POST'],
+    description: 'Assistente: a IA configurada faz o pedido com as ferramentas do toolkit (as mesmas do MCP), cada uma passando por estas regras',
+    validate: (ctx) => {
+      const m = (ctx.req.body ?? {}).message
+      if (typeof m !== 'string' || !m.trim() || m.length > 4000) fail('Pedido vazio ou longo demais', 'input.ui-assistant')
+    },
+  },
+  'ui.blocks': { kind: 'data-write', methods: ['POST'], description: 'Registra os blocos encontrados numa página (seções e cartões), para movê-los e ocultá-los (gravado no diretório de dados)' },
+  'ui.command': { kind: 'read', methods: ['POST'], description: 'Pede às telas abertas para abrir uma página ou preencher o simulador de API (nada é enviado)' },
+  'mcp.rpc': { kind: 'read', methods: ['POST', 'GET'], description: 'Servidor MCP: cada ferramenta chama a própria API e passa por estas mesmas regras' },
+  'mcp.settings.get': { kind: 'read', methods: ['GET'], description: 'Configuração do MCP (estado, token, ferramentas)' },
+  'mcp.settings': { kind: 'data-write', methods: ['PUT'], description: 'Liga/desliga o MCP e escolhe os grupos de ferramentas (gravado no diretório de dados)' },
+  'mcp.token': { kind: 'data-write', methods: ['POST'], description: 'Gera um novo token do MCP' },
 } satisfies Record<string, ActionDef>
 
 export type ActionId = keyof typeof ACTIONS

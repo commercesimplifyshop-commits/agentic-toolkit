@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common'
 import { Action } from '../readonly/actions'
 import { AiService, type AiSettings, type AskTurn } from './ai.service'
+import { HarnessService } from './harness.service'
 
 @Controller()
 export class AiController {
-  constructor(private readonly ai: AiService) {}
+  constructor(
+    private readonly ai: AiService,
+    private readonly harness: HarnessService,
+  ) {}
+
+  /** The harness of the configured AI: the runtime, what it loads and how each feature calls it */
+  @Get('workspaces/:id/ai/harness')
+  @Action('ai.harness')
+  harnessView(@Param('id') id: string, @Query('refresh') refresh?: string) {
+    return this.harness.view(id, refresh === '1')
+  }
 
   @Get('ai/providers')
   @Action('ai.providers')

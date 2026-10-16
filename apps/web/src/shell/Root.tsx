@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
+import { UiCustomizer } from './components/UiCustomizer'
 import { createBrowserRouter, Navigate, RouterProvider, useNavigate } from 'react-router-dom'
 import { Layout } from './Layout'
 import { AskPage } from './pages/AskPage'
@@ -16,6 +17,7 @@ import { useParams } from 'react-router-dom'
 import './shell.css'
 
 // Three.js is heavy: the 3D feature loads only when opened
+const HarnessPage = lazy(() => import('./pages/HarnessPage').then((m) => ({ default: m.HarnessPage })))
 const FlowPage = lazy(() => import('./pages/FlowPage').then((m) => ({ default: m.FlowPage })))
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage').then((m) => ({ default: m.ApiClientPage })))
 const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })))
@@ -103,6 +105,7 @@ const router = createBrowserRouter([
       { path: 'sfcc/upload', element: <Suspense fallback={loading}><SfccUploadPage /></Suspense> },
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
       { path: 'atualizacao', element: <Suspense fallback={loading}><UpdatesPage /></Suspense> },
+      { path: 'ia/harness', element: <Suspense fallback={loading}><HarnessPage /></Suspense> },
       { path: 'arquitetura-viva', element: <Suspense fallback={loading}><LiveArchitecturePage /></Suspense> },
       { path: 'git', element: <Suspense fallback={loading}><GitPage /></Suspense> },
       { path: 'git/pr/:number', element: <Suspense fallback={loading}><PullRequestPage /></Suspense> },
@@ -130,6 +133,8 @@ export function Root() {
     <>
       <RouterProvider router={router} />
       <DailyUpdate />
+      {/* theme, custom CSS and replaced texts on every screen */}
+      <UiCustomizer />
     </>
   )
 }

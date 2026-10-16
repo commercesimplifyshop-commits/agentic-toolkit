@@ -23,7 +23,7 @@ describe('Integrações reconhecidas pelo nome', () => {
     expect(integrationName('Loja_StockIntegration')).toBe('Integração de estoque')
     expect(integrationName('Loja_StockIntegrationApi')).toBe('Integração de estoque')
     expect(integrationName('Loja_PriceIntegrationApi')).toBe('Integração de preços')
-    expect(integrationName('Loja_MrBudgetIntegration')).toBe('Integração de orçamentos')
+    expect(integrationName('Loja_BudgetIntegration')).toBe('Integração de orçamentos')
     expect(integrationName('Loja_AcmeConnector')).toBe('Acme')
     expect(integrationName('Loja_Integration')).toBe('Integração (Loja_Integration)')
   })

@@ -66,6 +66,17 @@ export class AiService {
     private readonly tasks: TaskContextService,
   ) {}
 
+  /** The API keys, for the assistant's own tool loop (kept in memory or in env vars) */
+  anthropicKey() {
+    return this.keys.anthropic ?? process.env.ANTHROPIC_API_KEY
+  }
+  openAiKey() {
+    return this.keys.openai
+  }
+  anthropicKeyInMemory() {
+    return Boolean(this.keys.anthropic)
+  }
+
   settings(): AiSettings {
     try {
       return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }

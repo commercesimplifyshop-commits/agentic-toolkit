@@ -67,6 +67,8 @@ interface Card {
   id: string
   title: string
   status: CardStatus
+  /** Diagrams of the toolkit attached to the task (mirrors CardItem in refine.service.ts) */
+  attached?: { kind: 'diagram'; refId: string; title: string; at: string; by: string }[]
   parentId?: string
   childIds?: string[]
   createdAt: string
@@ -557,6 +559,36 @@ export function RefineCardPage() {
       {notice && <div className="sf-callout green" style={{ marginBottom: 12 }}>{notice}</div>}
 
       <DevPanel card={card} workspaceId={id} onPrepare={() => setGitOpen(true)} onDevelop={develop} onStop={stop} />
+
+      {(card.attached?.length ?? 0) > 0 && (
+        <div className="sf-card sf-card-attached">
+          <h3>Diagramas anexados</h3>
+          <span className="sub">Entram como contexto quando o Claude conversa e refina esta tarefa. Peça ao assistente (✦) para anexar outros.</span>
+          {card.attached!.map((a) => (
+            <div key={a.refId} className="sf-ui-block">
+              <span>⬡</span>
+              <Link className="sf-link" style={{ flex: 1 }} to={`/w/${id}/diagrams?diagram=${encodeURIComponent(a.refId)}`}>
+                {a.title}
+              </Link>
+              <span className="sf-faint" style={{ fontSize: 11.5 }}>
+                por {a.by} · {new Date(a.at).toLocaleDateString('pt-BR')}
+              </span>
+              <button
+                className="sf-ui-mini"
+                title="Remover da tarefa (o diagrama continua em Diagramas)"
+                onClick={() =>
+                  api
+                    .del<Card>(`/workspaces/${id}/refine/cards/${cardId}/attached/${encodeURIComponent(a.refId)}`)
+                    .then(setCard)
+                    .catch((e) => setError((e as Error).message))
+                }
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {card.childIds?.length ? <Children workspaceId={id} ids={card.childIds} /> : null}
 

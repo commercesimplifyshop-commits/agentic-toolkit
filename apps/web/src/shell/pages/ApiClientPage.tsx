@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useMap, type MapItem } from '../../map/useMap'
 import { api } from '../api'
+import { useUiCommands } from '../ui-prefs'
 import {
   buildUrl,
   finalBody,
@@ -61,6 +62,27 @@ export function ApiClientPage() {
       .finally(() => setLoadingTpl(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, routeId])
+
+  // filled by the assistant or an AI through the MCP: applied once the route's template is loaded (nothing is sent)
+  const fill = useUiCommands((c) => c.fill)
+  const takeFill = useUiCommands((c) => c.takeFill)
+  useEffect(() => {
+    if (!fill || fill.workspace !== id || fill.routeId !== routeId || loadingTpl || req.routeId !== routeId) return
+    const f = fill.request
+    const merge = (list: { key: string; value: string; enabled: boolean }[], add?: Record<string, string>) =>
+      add ? [...list.filter((x) => !(x.key in add)), ...Object.entries(add).map(([key, value]) => ({ key, value, enabled: true }))] : list
+    s.setRequest({
+      pathParams: req.pathParams.map((p) => ({ ...p, value: f.pathParams?.[p.name] ?? p.value })),
+      query: merge(req.query, f.query),
+      headers: merge(req.headers, f.headers),
+      body: f.body ?? req.body,
+      graphqlQuery: f.graphqlQuery ?? req.graphqlQuery,
+      graphqlVariables: f.graphqlVariables ?? req.graphqlVariables,
+      notes: f.note ? [`✦ Preenchido pelo assistente: ${f.note}`, ...req.notes] : ['✦ Preenchido pelo assistente. Confira a URL base e envie quando quiser.', ...req.notes],
+    })
+    takeFill()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fill, id, routeId, loadingTpl, req.routeId])
 
   const url = buildUrl(env, req)
   let headers: Record<string, string> = {}

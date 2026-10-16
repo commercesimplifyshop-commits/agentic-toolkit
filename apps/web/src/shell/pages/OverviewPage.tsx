@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, waitJob } from '../api'
 import { ago, fmtDate, nf, useShell } from '../store'
+import { Blocks } from '../components/Blocks'
+import { isEnabled, useUi } from '../ui-prefs'
 
 const ZONE_LABEL: Record<string, string> = {
   entrada: 'Entrada / conta',
@@ -54,8 +56,14 @@ export function OverviewPage() {
   const o = useShell((s) => s.overviews[id])
   const loadOverview = useShell((s) => s.loadOverview)
   const [busy, setBusy] = useState(false)
+  const prefs = useUi((st) => st.prefs)
 
-  if (!o) return <div className="sf-page"><span className="sf-spinner" /></div>
+  if (!o)
+    return (
+      <div className="sf-page">
+        <span className="sf-spinner" />
+      </div>
+    )
 
   const reanalyze = async () => {
     setBusy(true)
@@ -76,7 +84,10 @@ export function OverviewPage() {
     ['Terceiros (composer)', m.byOrigin['composer-thirdparty'], '#a78bfa'],
     ['Terceiros (app/code)', m.byOrigin['appcode-thirdparty'], '#e879f9'],
   ]
-  const totalEnabled = Math.max(1, origins.reduce((a, [, v]) => a + v, 0))
+  const totalEnabled = Math.max(
+    1,
+    origins.reduce((a, [, v]) => a + v, 0),
+  )
   const zones = Object.entries(o.integration.byZone)
     .map(([z, v]) => [ZONE_LABEL[z] ?? z, v] as [string, number])
     .sort((a, b) => b[1] - a[1])
@@ -100,12 +111,16 @@ export function OverviewPage() {
           <Link className="sf-btn" to={`/w/${id}/atualizacao`} title="Boletins de segurança e novidades do dia">
             ◷ Atualização do dia
           </Link>
-          <Link className="sf-btn" to={`/w/${id}/ask`}>
-            ✦ Perguntar à IA
-          </Link>
-          <Link className="sf-btn" to={`/w/${id}/debug`}>
-            ⏵ Debug de fluxo
-          </Link>
+          {isEnabled(prefs, 'ask') && (
+            <Link className="sf-btn" to={`/w/${id}/ask`}>
+              ✦ Perguntar à IA
+            </Link>
+          )}
+          {isEnabled(prefs, 'debug') && (
+            <Link className="sf-btn" to={`/w/${id}/debug`}>
+              ⏵ Debug de fluxo
+            </Link>
+          )}
           <button className="sf-btn" onClick={reanalyze} disabled={busy}>
             {busy ? <span className="sf-spinner" /> : '↻'} Reanalisar
           </button>
@@ -113,138 +128,194 @@ export function OverviewPage() {
         </div>
       </div>
 
-      <div className="sf-grid kpis">
-        <Kpi icon="◆" label="Versão" value={o.magento.version ?? '—'} hint={s ? `linha ${s.line} · mais recente ${s.latestOverall ?? '?'}` : o.magento.edition} tone={s?.supported === false ? 'var(--sf-red)' : undefined} />
-        <Kpi icon="▦" label="Módulos habilitados" value={nf.format(m.enabled)} hint={`${m.byOrigin.custom} customizados · ${m.disabled.length} desativados`} />
-        <Kpi icon="⬡" label="Extensões (composer)" value={nf.format(o.extensions.total)} hint={`${o.extensions.vendors.length} vendors`} />
-        <Kpi icon="⇄" label="Pontos de integração próprios" value={nf.format(o.integration.total)} hint={`${o.integration.coreRewrites} reescritas do core`} />
-        <Kpi
-          icon="⚠"
-          label="Pontos de atenção"
-          value={nf.format((o.integration.risks.alto ?? 0) + (o.integration.risks.medio ?? 0))}
-          hint={`${o.integration.risks.alto ?? 0} altos · ${o.integration.anonymousWrites} endpoints anônimos de escrita`}
-          tone={o.integration.risks.alto ? 'var(--sf-red)' : undefined}
-        />
-      </div>
-
-      <div className="sf-grid two">
-        <div className="sf-card">
-          <div className="sf-card-head">
-            <div>
-              <h2>Highlights técnicos</h2>
-              <span className="sub" style={{ marginBottom: 0 }}>
-                Detectados no código em {fmtDate(o.computedAt)}
-              </span>
-            </div>
-          </div>
-          {o.highlights.map((h) => (
-            <div key={h.title} className="sf-highlight">
-              <span className={`lvl ${h.level}`} />
-              <div style={{ flex: 1 }}>
-                <strong>{h.title}</strong>
-                <p>{h.detail}</p>
+      {/* the blocks follow the order and visibility chosen in Configurações → Interface, by the assistant or through the MCP */}
+      <Blocks
+        page="overview"
+        blocks={[
+          {
+            id: 'kpis',
+            size: 'full',
+            node: (
+              <div className="sf-grid kpis" style={{ marginBottom: 0 }}>
+                <Kpi
+                  icon="◆"
+                  label="Versão"
+                  value={o.magento.version ?? '—'}
+                  hint={s ? `linha ${s.line} · mais recente ${s.latestOverall ?? '?'}` : o.magento.edition}
+                  tone={s?.supported === false ? 'var(--sf-red)' : undefined}
+                />
+                <Kpi icon="▦" label="Módulos habilitados" value={nf.format(m.enabled)} hint={`${m.byOrigin.custom} customizados · ${m.disabled.length} desativados`} />
+                <Kpi icon="⬡" label="Extensões (composer)" value={nf.format(o.extensions.total)} hint={`${o.extensions.vendors.length} vendors`} />
+                <Kpi icon="⇄" label="Pontos de integração próprios" value={nf.format(o.integration.total)} hint={`${o.integration.coreRewrites} reescritas do core`} />
+                <Kpi
+                  icon="⚠"
+                  label="Pontos de atenção"
+                  value={nf.format((o.integration.risks.alto ?? 0) + (o.integration.risks.medio ?? 0))}
+                  hint={`${o.integration.risks.alto ?? 0} altos · ${o.integration.anonymousWrites} endpoints anônimos de escrita`}
+                  tone={o.integration.risks.alto ? 'var(--sf-red)' : undefined}
+                />
               </div>
-              {h.link && (
-                <Link className="sf-link" to={`/w/${id}/${h.link === 'apis' ? 'integrations/api' : h.link === 'plugins' ? 'integrations/plugins' : h.link === 'patches' ? 'security' : h.link}`}>
-                  ver →
-                </Link>
-              )}
-            </div>
-          ))}
-          {o.highlights.length === 0 && <div className="sf-empty">Nada crítico encontrado.</div>}
-        </div>
-
-        <div className="sf-card">
-          <h2>Módulos por origem</h2>
-          <span className="sub">{nf.format(m.enabled)} módulos habilitados em app/etc/config.php</span>
-          <div className="sf-stack">
-            {origins.map(([label, v, c]) => (
-              <div key={label} title={`${label}: ${v}`} style={{ width: `${(v / totalEnabled) * 100}%`, background: c }} />
-            ))}
-          </div>
-          <div className="sf-legend">
-            {origins.map(([label, v, c]) => (
-              <span key={label}>
-                <i style={{ background: c }} />
-                {label} <b style={{ color: 'var(--sf-text)' }}>{v}</b>
-              </span>
-            ))}
-          </div>
-          <h2 style={{ marginTop: 22 }}>Customizações por etapa do fluxo</h2>
-          <span className="sub">Plugins, observers, preferences, APIs, rotas, crons e filas de módulos customizados e de terceiros</span>
-          <Bars data={zones} />
-        </div>
-      </div>
-
-      <div className="sf-grid three" style={{ marginTop: 14 }}>
-        <div className="sf-card">
-          <h2>Tipos de customização</h2>
-          <span className="sub">Onde o projeto se pluga no Magento</span>
-          <Bars data={kinds} color="var(--sf-blue)" />
-        </div>
-        <div className="sf-card">
-          <div className="sf-card-head">
-            <h2>Extensões por vendor</h2>
-            <Link to={`/w/${id}/modules`}>ver todas →</Link>
-          </div>
-          <Bars data={o.extensions.vendors.slice(0, 8).map((v) => [v.vendor, v.count])} color="var(--sf-purple)" />
-        </div>
-        <div className="sf-card">
-          <h2>Stack</h2>
-          <span className="sub">Lido do composer.lock, config.php e arquivos de infraestrutura</span>
-          <StackRow label="PHP suportado" value={o.magento.php ?? '—'} />
-          <StackRow label="Framework" value={o.magento.framework ?? '—'} />
-          <StackRow label="Busca" value={o.infrastructure.searchEngine?.replace('Magento_', '') ?? '—'} />
-          <StackRow label="Filas (RabbitMQ)" value={o.infrastructure.rabbitmq ? 'sim' : 'não'} />
-          <StackRow label="Tema" value={o.frontend.hyva ? 'Hyvä' : o.frontend.breeze ? 'Breeze' : o.frontend.themes.find((t) => t.area === 'frontend')?.code ?? 'Luma'} />
-          <StackRow label="Page Builder / GraphQL" value={`${o.frontend.pageBuilder ? 'sim' : 'não'} / ${o.frontend.graphql ? 'sim' : 'não'}`} />
-          <StackRow label="Cloud" value={o.infrastructure.cloud ? 'Adobe Commerce Cloud' : 'não'} />
-          <StackRow label="Docker" value={o.infrastructure.docker?.services.join(', ') ?? '—'} />
-          <StackRow label="CI/CD" value={o.infrastructure.ci.join(', ') || '—'} />
-        </div>
-      </div>
-
-      <div className="sf-grid three" style={{ marginTop: 14 }}>
-        <div className="sf-card">
-          <h2>Código próprio (app/code)</h2>
-          <span className="sub">{m.appCodeVendors.length} vendors</span>
-          <StackRow label="Arquivos PHP" value={`${nf.format(o.code.php)} · ${nf.format(o.code.phpLines)} linhas`} />
-          <StackRow label="XML de configuração" value={nf.format(o.code.xml)} />
-          <StackRow label="Templates .phtml" value={nf.format(o.code.templates)} />
-          <StackRow label="JavaScript" value={nf.format(o.code.js)} />
-          <StackRow label="Testes" value={nf.format(o.code.tests)} />
-        </div>
-        <div className="sf-card">
-          <div className="sf-card-head">
-            <h2>Patches & segurança</h2>
-            <Link to={`/w/${id}/security`}>detalhes →</Link>
-          </div>
-          <StackRow label="Quality Patches Tool" value={o.patches.qualityPatches ?? 'não instalado'} />
-          <StackRow label="Security package" value={o.security.securityPackage ?? '—'} />
-          <StackRow label="Patches aplicados" value={`${o.patches.files.length} arquivos`} />
-          <StackRow label="2FA do admin" value={o.security.modules.find((x) => x.name === 'Magento_TwoFactorAuth')?.enabled ? 'ativo' : 'desativado'} />
-          <StackRow label="reCAPTCHA" value={`${o.security.reCaptcha.enabled}/${o.security.reCaptcha.total} módulos ativos`} />
-          <StackRow label="Fim do suporte" value={s?.endOfSupport ? fmtDate(s.endOfSupport) : '—'} />
-        </div>
-        <div className="sf-card">
-          <h2>Atividade recente</h2>
-          <span className="sub">{o.project.git ? `${o.project.git.contributors ?? '?'} contribuidores` : 'Origem sem histórico git'}</span>
-          <div className="sf-list">
-            {o.project.commits.slice(0, 6).map((c) => (
-              <div key={c.hash} className="sf-list-row">
-                <span className="sf-code-id">{c.hash}</span>
-                <div className="main">
-                  <strong>{c.subject}</strong>
-                  <span>
-                    {c.author} · {ago(c.date)}
-                  </span>
+            ),
+          },
+          {
+            id: 'highlights',
+            size: 'half',
+            node: (
+              <div className="sf-card">
+                <div className="sf-card-head">
+                  <div>
+                    <h2>Highlights técnicos</h2>
+                    <span className="sub" style={{ marginBottom: 0 }}>
+                      Detectados no código em {fmtDate(o.computedAt)}
+                    </span>
+                  </div>
+                </div>
+                {o.highlights.map((h) => (
+                  <div key={h.title} className="sf-highlight">
+                    <span className={`lvl ${h.level}`} />
+                    <div style={{ flex: 1 }}>
+                      <strong>{h.title}</strong>
+                      <p>{h.detail}</p>
+                    </div>
+                    {h.link && (
+                      <Link className="sf-link" to={`/w/${id}/${h.link === 'apis' ? 'integrations/api' : h.link === 'plugins' ? 'integrations/plugins' : h.link === 'patches' ? 'security' : h.link}`}>
+                        ver →
+                      </Link>
+                    )}
+                  </div>
+                ))}
+                {o.highlights.length === 0 && <div className="sf-empty">Nada crítico encontrado.</div>}
+              </div>
+            ),
+          },
+          {
+            id: 'modules',
+            size: 'half',
+            node: (
+              <div className="sf-card">
+                <h2>Módulos por origem</h2>
+                <span className="sub">{nf.format(m.enabled)} módulos habilitados em app/etc/config.php</span>
+                <div className="sf-stack">
+                  {origins.map(([label, v, c]) => (
+                    <div key={label} title={`${label}: ${v}`} style={{ width: `${(v / totalEnabled) * 100}%`, background: c }} />
+                  ))}
+                </div>
+                <div className="sf-legend">
+                  {origins.map(([label, v, c]) => (
+                    <span key={label}>
+                      <i style={{ background: c }} />
+                      {label} <b style={{ color: 'var(--sf-text)' }}>{v}</b>
+                    </span>
+                  ))}
+                </div>
+                <h2 style={{ marginTop: 22 }}>Customizações por etapa do fluxo</h2>
+                <span className="sub">Plugins, observers, preferences, APIs, rotas, crons e filas de módulos customizados e de terceiros</span>
+                <Bars data={zones} />
+              </div>
+            ),
+          },
+          {
+            id: 'kinds',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <h2>Tipos de customização</h2>
+                <span className="sub">Onde o projeto se pluga no Magento</span>
+                <Bars data={kinds} color="var(--sf-blue)" />
+              </div>
+            ),
+          },
+          {
+            id: 'vendors',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <div className="sf-card-head">
+                  <h2>Extensões por vendor</h2>
+                  <Link to={`/w/${id}/modules`}>ver todas →</Link>
+                </div>
+                <Bars data={o.extensions.vendors.slice(0, 8).map((v) => [v.vendor, v.count])} color="var(--sf-purple)" />
+              </div>
+            ),
+          },
+          {
+            id: 'stack',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <h2>Stack</h2>
+                <span className="sub">Lido do composer.lock, config.php e arquivos de infraestrutura</span>
+                <StackRow label="PHP suportado" value={o.magento.php ?? '—'} />
+                <StackRow label="Framework" value={o.magento.framework ?? '—'} />
+                <StackRow label="Busca" value={o.infrastructure.searchEngine?.replace('Magento_', '') ?? '—'} />
+                <StackRow label="Filas (RabbitMQ)" value={o.infrastructure.rabbitmq ? 'sim' : 'não'} />
+                <StackRow label="Tema" value={o.frontend.hyva ? 'Hyvä' : o.frontend.breeze ? 'Breeze' : (o.frontend.themes.find((t) => t.area === 'frontend')?.code ?? 'Luma')} />
+                <StackRow label="Page Builder / GraphQL" value={`${o.frontend.pageBuilder ? 'sim' : 'não'} / ${o.frontend.graphql ? 'sim' : 'não'}`} />
+                <StackRow label="Cloud" value={o.infrastructure.cloud ? 'Adobe Commerce Cloud' : 'não'} />
+                <StackRow label="Docker" value={o.infrastructure.docker?.services.join(', ') ?? '—'} />
+                <StackRow label="CI/CD" value={o.infrastructure.ci.join(', ') || '—'} />
+              </div>
+            ),
+          },
+          {
+            id: 'code',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <h2>Código próprio (app/code)</h2>
+                <span className="sub">{m.appCodeVendors.length} vendors</span>
+                <StackRow label="Arquivos PHP" value={`${nf.format(o.code.php)} · ${nf.format(o.code.phpLines)} linhas`} />
+                <StackRow label="XML de configuração" value={nf.format(o.code.xml)} />
+                <StackRow label="Templates .phtml" value={nf.format(o.code.templates)} />
+                <StackRow label="JavaScript" value={nf.format(o.code.js)} />
+                <StackRow label="Testes" value={nf.format(o.code.tests)} />
+              </div>
+            ),
+          },
+          {
+            id: 'patches',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <div className="sf-card-head">
+                  <h2>Patches & segurança</h2>
+                  <Link to={`/w/${id}/security`}>detalhes →</Link>
+                </div>
+                <StackRow label="Quality Patches Tool" value={o.patches.qualityPatches ?? 'não instalado'} />
+                <StackRow label="Security package" value={o.security.securityPackage ?? '—'} />
+                <StackRow label="Patches aplicados" value={`${o.patches.files.length} arquivos`} />
+                <StackRow label="2FA do admin" value={o.security.modules.find((x) => x.name === 'Magento_TwoFactorAuth')?.enabled ? 'ativo' : 'desativado'} />
+                <StackRow label="reCAPTCHA" value={`${o.security.reCaptcha.enabled}/${o.security.reCaptcha.total} módulos ativos`} />
+                <StackRow label="Fim do suporte" value={s?.endOfSupport ? fmtDate(s.endOfSupport) : '—'} />
+              </div>
+            ),
+          },
+          {
+            id: 'activity',
+            size: 'third',
+            node: (
+              <div className="sf-card">
+                <h2>Atividade recente</h2>
+                <span className="sub">{o.project.git ? `${o.project.git.contributors ?? '?'} contribuidores` : 'Origem sem histórico git'}</span>
+                <div className="sf-list">
+                  {o.project.commits.slice(0, 6).map((c) => (
+                    <div key={c.hash} className="sf-list-row">
+                      <span className="sf-code-id">{c.hash}</span>
+                      <div className="main">
+                        <strong>{c.subject}</strong>
+                        <span>
+                          {c.author} · {ago(c.date)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {o.project.commits.length === 0 && <div className="sf-empty">Sem commits para mostrar.</div>}
                 </div>
               </div>
-            ))}
-            {o.project.commits.length === 0 && <div className="sf-empty">Sem commits para mostrar.</div>}
-          </div>
-        </div>
-      </div>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

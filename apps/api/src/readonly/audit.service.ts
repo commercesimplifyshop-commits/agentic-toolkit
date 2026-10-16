@@ -11,6 +11,8 @@ export interface AuditEntry {
   url: string
   workspace?: string
   verdict: 'allowed' | 'blocked'
+  /** Who called: "mcp" for the calls of an AI connected through the MCP */
+  client?: string
   rule?: string
   detail?: string
 }

@@ -350,6 +350,90 @@ Toda funcionalidade que roda o Claude Code recebe **skills** do Agentic Toolkit,
 - As sessões continuam com `--setting-sources user` (para usar o modelo que você escolheu no Claude Code), então os seus plugins pessoais também ficam disponíveis. O system prompt orienta o Claude a preferir as skills do Agentic Toolkit.
 - As skills valem para o Claude Code. Os provedores "API da Anthropic" e "modelo local" do Pergunte ao código não as usam.
 
+## IA → Harness da IA
+
+Uma categoria **IA** no menu, com o desenho da arquitetura do harness da IA configurada em Configurações → Inteligência artificial. Harness é o que roda o modelo. O desenho muda conforme o provedor:
+
+- **Claude Code local:** o app inicia o CLI como faz nas funcionalidades e o interrompe assim que ele se apresenta, sem gerar resposta. Mostra o que o CLI informa:
+  - versão, modelo efetivo, autenticação (login da conta ou chave de API) e modo de permissão;
+  - plugins, skills, subagentes, comandos e servidores MCP carregados.
+- **API da Anthropic:** o laço de ferramentas do próprio app, com modelo, esforço e origem da chave.
+- **Modelo compatível com OpenAI:** o laço de ferramentas do app, com endereço, modelo, situação e os modelos que o servidor oferece.
+
+O desenho tem quatro camadas:
+1. Funcionalidades que usam IA.
+2. Harness.
+3. Ferramentas e permissões.
+4. Modelo e recursos.
+
+A tabela abaixo dele mostra, por funcionalidade, o motor, o acesso (leitura, escrita no worktree, ferramentas do app), as ferramentas, onde trabalha e as skills do toolkit.
+
+**Só Pergunte ao código e o Assistente seguem o modelo configurado.** Refinamento, Desenvolvimento, Diagramas, Arquitetura viva, Documentação e OpenSpec usam sempre o Claude Code local. As chamadas do Claude Code carregam os plugins e as skills do usuário (`--setting-sources user`) e ignoram os servidores MCP da máquina (`--strict-mcp-config`).
+
+Pelo MCP, a ferramenta `harness_da_ia` traz o mesmo retrato.
+
+## Assistente e MCP
+
+O botão **✦ Assistente** (canto inferior direito, ou Ctrl+K), em qualquer tela, é um agente. Ele usa a IA configurada em Configurações → Inteligência artificial e as mesmas ferramentas do MCP, e sabe em que tela a pessoa está ("este diagrama", "esta tarefa", "esta rota"). Ele encadeia as funcionalidades. Por exemplo:
+
+- **Diagrama → tarefa:** "crie uma tarefa no Refinamento a partir deste diagrama". Ele lê o diagrama, cria o card com a demanda, anexa o diagrama e abre o card.
+- **Tarefa → diagrama:** "crie um diagrama de sequência desta tarefa e anexe a ela". O Claude do app desenha lendo o código, e o diagrama fica anexado ao card.
+- **Módulo → diagrama:** "busque o módulo de integração de preços e gere um diagrama de componentes dele".
+- **Simulador de API:** "preencha o Simulador para atualizar o estoque em lote". Ele acha a rota no mapa, lê o modelo e o código e preenche parâmetros, headers e body na tela. **Nada é enviado:** a pessoa confere o ambiente e clica em Enviar.
+- **Interface:** quase todo o visual pode ser personalizado por pedido. Cada mudança fica no histórico e pode ser desfeita ("desfaça a última mudança"):
+  - **Nomes:** "renomeie Pergunte ao código para Pergunte a Sophia". Muda no menu, no título da página e onde mais o nome aparecer.
+  - **Textos:** "troque Highlights técnicos por Pontos de destaque". Vale para qualquer texto visível; campos de digitação, código e a conversa com o assistente não são alterados.
+  - **Cores, fonte e tamanhos:** "deixe o destaque azul e os cartões menos arredondados". O tema tem 18 itens: cores, fonte, tamanho do texto, arredondamento e largura do menu. Uma paleta inteira vai numa mudança só e se desfaz de uma vez.
+  - **Menu:** "crie uma seção Favoritos no topo com a Arquitetura viva e o Refinamento"; também desligar funcionalidades que a pessoa não usa. Os dados de uma funcionalidade desligada continuam guardados.
+  - **Blocos das páginas:** ocultar ou mudar de lugar ("coloque o bloco Stack abaixo dos Highlights").
+  - **O resto do visual:** o assistente escreve CSS personalizado (bordas, espaçamentos, esconder um botão, layout de uma área). Usa seletores estáveis como `[data-block="stack"]`, `.sf-nav[data-feature="ask"]` e `.sf-content[data-feature="overview"]`. O CSS só estiliza: `@import`, `url()` e scripts são recusados.
+  - **O que não dá:** mudar comportamento (uma funcionalidade nova, o que um botão faz, a lógica de uma tela) exige alterar o código do app. O assistente diz isso e sugere criar uma tarefa no Refinamento.
+
+Cada passo aparece no painel enquanto ele trabalha. O pedido roda como tarefa em segundo plano, então pedidos que geram diagramas ou refinam cards podem levar alguns minutos.
+
+**Diagramas anexados à tarefa:** aparecem no card do Refinamento e entram como contexto quando o Claude conversa sobre a tarefa e quando a refina.
+
+**Interface à mão:** Configurações → Interface tem as mesmas opções: renomear, ligar e desligar funcionalidades, blocos, tema com seletor de cor, textos trocados, CSS e o botão Desfazer. As telas abertas recebem cada mudança na hora, venha de onde vier.
+
+**Guia de estilo:** gerado do tema atual. Mostra cada cor e medida com o valor de agora e o padrão, onde aparece na tela, a regra de uso, o contraste medido (WCAG) entre texto e fundo, os componentes e os seletores para CSS.
+- **Onde ver:** Configurações → Interface → Tema, ou pelo MCP (ferramenta `guia_de_estilo` e recurso `agentic://guia-de-estilo`).
+- **Contraste:** cada mudança de cor é conferida; se deixar um texto difícil de ler, a mudança é aplicada e o problema é avisado.
+
+**Modo desenvolvedor** (Ctrl+Shift+D, ou o interruptor em Configurações → Interface): uma barra flutuante para customizar direto na tela. Fica ligado ou desligado por navegador. Ferramentas:
+- **Layout:** arrastar os blocos da página para outro lugar, e ocultar ou mostrar cada um. Vale para todas as páginas, menos as ferramentas de tela cheia (Fluxo 3D, diagramas, Explorador de código, Simulador, Documentação, Quadro branco, Arquitetura viva, Pergunte ao código).
+  - **Visão geral:** declara os próprios blocos, que podem ir para qualquer lugar.
+  - **Demais páginas:** o app encontra os blocos sozinho e dá a cada um o nome do próprio título. Exemplos: seções, filtros, tabelas, linhas de cartões e colunas do quadro de Refinamento.
+  - **Regra de grupo:** nessas páginas, um bloco se move dentro do próprio grupo (as seções da página, ou os cartões de uma linha).
+  - **Como é aplicado:** a ordem e a ocultação usam CSS (`order`, `display`), sem mexer na estrutura da página.
+  - **Assistente e MCP:** os blocos encontrados são registrados para o assistente e o MCP também os moverem e ocultarem, assim que a página for aberta uma vez.
+- **Textos:** clicar em qualquer texto para trocá-lo; clicar num item do menu renomeia a funcionalidade.
+- **Cores:** as cores do tema, com seletor.
+- **CSS:** passar o mouse mostra o seletor estável de cada elemento; clicar leva o seletor para o editor.
+- **Desfazer e Assistente.**
+
+**Como cada provedor funciona:**
+- **Claude Code:** conecta-se ao próprio MCP do app com um token interno, que só existe na memória e funciona mesmo com o MCP desligado para clientes externos.
+- **API da Anthropic ou modelo compatível com OpenAI:** o laço de ferramentas roda no servidor.
+
+Em todos os casos, cada ferramenta chama a API do app e passa pelas regras de somente leitura. A auditoria marca as chamadas como `assistente` ou `mcp`.
+
+### O servidor MCP
+
+- **Endereço:** `http://127.0.0.1:4310/api/mcp` (transporte Streamable HTTP). Para clientes que só iniciam programas, como o Claude Desktop e o Codex CLI, há uma ponte stdio em `apps/api/bin/mcp-stdio.mjs`. É o mesmo catálogo de ferramentas do assistente.
+- **Ligar e conectar:** o MCP começa desligado. Ligue em Configurações → MCP e copie a configuração do seu cliente; ela já traz o endereço e o token. "Testar conexão" chama o MCP como um cliente faria.
+- **Segurança:**
+  - todo cliente envia o token como `Authorization: Bearer`; "Novo" invalida o token atual;
+  - chamadas de páginas de outras origens são recusadas;
+  - o servidor só responde nesta máquina.
+- **O que a IA pode fazer**, por grupo:
+  - **Interface do app** (ligado): `ver_interface`, `ativar_funcionalidade`, `mostrar_bloco`, `mover_bloco`, `restaurar_interface`.
+  - **Consulta ao projeto** (ligado, só leitura): `listar_workspaces`, `visao_geral`, `listar_modulos`, `buscar_no_mapa`, `buscar_no_codigo`, `ler_arquivo`, `listar_pasta`, `arquitetura_viva`, `listar_diagramas`, `ver_diagrama`, `listar_cards`, `ver_card`, `modelo_requisicao_api`, `status_tarefa`, `aguardar_tarefa`, `aguardar_card`, `auditoria`.
+  - **Criar e ligar itens** (ligado, sem custo de IA): `criar_diagrama` (Mermaid), `anexar_ao_card`, `abrir_tela`, `preencher_simulador_api`.
+  - **Ações com custo ou tarefas** (desligado para clientes externos): `gerar_diagrama`, `criar_card`, `conversar_card`, `refinar_card`, `perguntar_ao_codigo`, `analisar_projeto`, `desenhar_arquitetura`. As longas devolvem na hora e continuam em segundo plano; `aguardar_tarefa` e `aguardar_card` esperam até 50 s por chamada, abaixo do limite de tempo dos clientes MCP.
+  - **Sempre disponível:** `guia`, que explica cada funcionalidade e os fluxos entre elas. O servidor também manda essas instruções ao conectar.
+- **Limites:** nenhuma ferramenta grava no código do projeto, faz push ou mexe em branches. Cada ferramenta chama a própria API do app, então passa pelas mesmas travas de somente leitura. A auditoria marca essas chamadas como "via MCP".
+- **Novas páginas com blocos:** para tornar os blocos de outra página configuráveis, monte a página com `<Blocks>` (`apps/web/src/shell/components/Blocks.tsx`) e registre os blocos em `apps/api/src/ui/ui-catalog.ts`. O assistente, o MCP e as Configurações passam a enxergá-los.
+
 ## Compartilhando com o time
 
 Cada engenheiro roda o Agentic Toolkit na própria máquina e conecta o projeto em que trabalha. Nada é enviado para fora, exceto as perguntas à IA para o provedor escolhido. Para levar a análise de um colega:

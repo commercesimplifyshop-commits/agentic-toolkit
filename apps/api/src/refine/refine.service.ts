@@ -11,6 +11,7 @@ import { WorkspaceEnvService } from '../settings/workspace-env.service'
 import { DOC_HOSTS } from '../techs/sfcc/knowledge'
 import { SfccService } from '../techs/sfcc/sfcc.service'
 import { WorkspacesService } from '../workspaces/workspaces.service'
+import { DiagramsService } from '../diagrams/diagrams.service'
 import { refineProfile } from './profiles'
 import { skillsInEvent, withSkills } from '../skills/claude-skills'
 import { SkillsService } from '../skills/skills.service'
@@ -95,6 +96,17 @@ export interface Card {
   refinement?: Refinement
   git?: { branch: string; base?: string; path: string; preparedAt: string }
   dev?: DevState
+  /** Items of the toolkit attached to the task (a diagram of the solution, for instance): context for the refinement */
+  attached?: CardItem[]
+}
+
+export interface CardItem {
+  kind: 'diagram'
+  refId: string
+  title: string
+  at: string
+  /** Who attached it: the person, the assistant or an AI through the MCP */
+  by: string
 }
 
 const CARD_ID = /^[a-f0-9]{10}$/
@@ -129,6 +141,7 @@ export class RefineService implements OnApplicationBootstrap {
     private readonly env: WorkspaceEnvService,
     private readonly sfcc: SfccService,
     private readonly skills: SkillsService,
+    private readonly diagrams?: DiagramsService,
   ) {}
 
   private profile(id: string) {
@@ -255,6 +268,7 @@ export class RefineService implements OnApplicationBootstrap {
       card.parentId ? 'Esta tarefa é uma parte de uma demanda maior: refine só o escopo desta parte.' : '',
       card.messages.length ? `Conversa até aqui:\n${this.transcript(card.messages.slice(-MAX_TURNS_IN_PROMPT))}` : '',
       earlier.length ? `Imagens de mensagens anteriores (leia se precisar):\n${this.explore.imageLines(id, earlier).join('\n')}` : '',
+      this.attachedContext(id, card),
       `Nova mensagem do usuário:\n${message}`,
       attachments.length ? `Imagens anexadas nesta mensagem (leia cada uma com a ferramenta Read antes de responder):\n${this.explore.imageLines(id, attachments).join('\n')}` : '',
     ]
@@ -269,54 +283,103 @@ export class RefineService implements OnApplicationBootstrap {
     )
   }
 
-  /** A new demand: the card is created with the first turn of the conversation already answered */
-  async create(id: string, input: { message?: string; attachments?: { id: string; name?: string }[] }) {
+  /** Saves what a Claude turn produced, keeping what was attached to the card meanwhile */
+  private settle(id: string, card: Card) {
+    try {
+      card.attached = this.get(id, card.id).attached
+    } catch {
+      // the card was deleted meanwhile: save what there is
+    }
+    card.busy = undefined
+    this.save(id, card)
+  }
+
+  /**
+   * Runs a Claude turn on a card now, or in the background: the card comes back busy at once and the
+   * screen (or the assistant, with aguardar_card) follows it until it is done.
+   */
+  private async turn(id: string, card: Card, work: () => Promise<void>, background: boolean) {
+    const run = work()
+      .catch((e: Error) => {
+        card.error = e.message
+        if (!background) throw e
+      })
+      .finally(() => this.settle(id, card))
+    if (!background) await run
+  }
+
+  /** A new demand: the card is created with the first turn of the conversation already answered (or answering, in the background) */
+  async create(id: string, input: { message?: string; attachments?: { id: string; name?: string }[] }, background = false) {
     const attachments = this.attachmentsOf(id, input.attachments)
     const message = (input.message ?? '').trim() || (attachments.length ? '(imagens anexadas)' : '')
     if (message.length < 2 || message.length > MAX_MESSAGE) throw new BadRequestException(`Descreva a demanda (até ${MAX_MESSAGE} caracteres) ou anexe uma imagem`)
     const card = this.newCard(message.split('\n')[0].slice(0, 80))
     card.busy = 'conversando'
     this.save(id, card)
-    try {
-      await this.converse(id, card, message, attachments)
-    } finally {
-      card.busy = undefined
-      this.save(id, card)
-    }
+    await this.turn(id, card, () => this.converse(id, card, message, attachments), background)
     return card
   }
 
-  async message(id: string, cardId: string, input: { message?: string; attachments?: { id: string; name?: string }[] }) {
+  async message(id: string, cardId: string, input: { message?: string; attachments?: { id: string; name?: string }[] }, background = false) {
     const card = this.get(id, cardId)
     if (card.busy) throw new ConflictException(`O Claude ainda está ${card.busy} neste card`)
     const attachments = this.attachmentsOf(id, input.attachments)
     const message = (input.message ?? '').trim() || (attachments.length ? '(imagens anexadas)' : '')
     if (message.length < 2 || message.length > MAX_MESSAGE) throw new BadRequestException(`Mensagem entre 2 e ${MAX_MESSAGE} caracteres`)
     card.busy = 'conversando'
+    card.error = undefined
     this.save(id, card)
-    try {
-      await this.converse(id, card, message, attachments)
-    } finally {
-      card.busy = undefined
-      this.save(id, card)
-    }
+    await this.turn(id, card, () => this.converse(id, card, message, attachments), background)
+    return card
+  }
+
+  /** The diagrams attached to the card, as text for Claude (a deleted one is skipped) */
+  private attachedContext(id: string, card: Card) {
+    const parts = (card.attached ?? []).flatMap((a) => {
+      try {
+        const d = this.diagrams!.get(id, a.refId)
+        return [`Diagrama "${d.name}" (${d.mode === 'canvas' ? 'grafo JSON' : 'Mermaid'}):\n${d.source.slice(0, 6000)}`]
+      } catch {
+        return []
+      }
+    })
+    return parts.length ? `Diagramas anexados à tarefa (fazem parte da demanda; use-os como referência da solução):\n\n${parts.join('\n\n')}` : ''
+  }
+
+  /** Attaches a diagram of the toolkit to the task */
+  attach(id: string, cardId: string, input: { kind?: unknown; refId?: unknown }, by: string) {
+    const card = this.get(id, cardId)
+    if (input.kind !== 'diagram') throw new BadRequestException('Por enquanto só diagramas podem ser anexados')
+    if (!this.diagrams) throw new BadRequestException('Diagramas indisponíveis')
+    const d = this.diagrams.get(id, String(input.refId ?? ''))
+    card.attached = [...(card.attached ?? []).filter((a) => a.refId !== d.id), { kind: 'diagram' as const, refId: d.id, title: d.name, at: new Date().toISOString(), by }].slice(-20)
+    card.updatedAt = new Date().toISOString()
+    this.save(id, card)
+    return card
+  }
+
+  detach(id: string, cardId: string, refId: string) {
+    const card = this.get(id, cardId)
+    card.attached = (card.attached ?? []).filter((a) => a.refId !== refId)
+    this.save(id, card)
     return card
   }
 
   /** Writes the refined card from the conversation: business, technical description, plan, criteria, complexity */
-  async refine(id: string, cardId: string) {
+  async refine(id: string, cardId: string, background = false) {
     const card = this.get(id, cardId)
     if (card.busy) throw new ConflictException(`O Claude ainda está ${card.busy} neste card`)
     if (card.messages.length < 2) throw new BadRequestException('Converse com o Claude sobre a demanda antes de gerar o card')
     card.busy = 'refinando'
     card.error = undefined
     this.save(id, card)
-    try {
+    await this.turn(id, card, async () => {
       const images = card.messages.flatMap((m) => m.attachments ?? [])
       const prompt = [
         this.projectLine(id),
         card.parentId ? 'Esta tarefa é uma parte de uma demanda maior: o card cobre só o escopo desta parte; não recomende dividir de novo sem necessidade.' : '',
         images.length ? `Imagens anexadas na conversa (leia cada uma com a ferramenta Read):\n${this.explore.imageLines(id, images).join('\n')}` : '',
+        this.attachedContext(id, card),
         `Conversa de refinamento:\n${this.transcript(card.messages.slice(-60))}`,
       ]
         .filter(Boolean)
@@ -330,13 +393,7 @@ export class RefineService implements OnApplicationBootstrap {
       card.refinement = { ...this.sanitize(raw, this.profile(id).learning), ...(skills.length ? { skills } : {}) }
       card.title = card.refinement.title || card.title
       if (card.status === 'refinando') card.status = 'refinado'
-    } catch (e) {
-      card.error = (e as Error).message
-      throw e
-    } finally {
-      card.busy = undefined
-      this.save(id, card)
-    }
+    }, background)
     return card
   }
 
