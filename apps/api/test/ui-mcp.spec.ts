@@ -4,7 +4,7 @@ import { ACTIONS } from '../src/readonly/actions'
 import { McpSettingsService } from '../src/mcp/mcp-settings.service'
 import { MCP_TOOLS } from '../src/mcp/mcp-tools'
 import { McpService } from '../src/mcp/mcp.service'
-import { describeContext } from '../src/ui/ui-assistant.service'
+import { assistantTools, CHANGES_THE_APP, describeContext } from '../src/ui/ui-assistant.service'
 import { UiCommandsService } from '../src/ui/ui-commands.service'
 import { UI_FEATURES, UI_PAGES } from '../src/ui/ui-catalog'
 import { UiPrefsService } from '../src/ui/ui-prefs.service'
@@ -154,6 +154,18 @@ describe('Assistente', () => {
     expect(describeContext({ workspace: 'loja-1a2b3c', path: '/w/loja-1a2b3c/refinamento/0123456789' })).toContain('Tarefa aberta na tela ("esta tarefa", "este card"): 0123456789')
     expect(describeContext({ workspace: 'loja-1a2b3c', path: '/w/loja-1a2b3c/api-client?route=rest%3APOST' })).toContain('Rota aberta no Simulador de API: rest:POST')
     expect(describeContext({})).toContain('não está dentro de um workspace')
+  })
+
+  it('changes the app only with the developer mode on: without it, those tools are not even given', () => {
+    const off = assistantTools(false).map((t) => t.name)
+    const on = assistantTools(true).map((t) => t.name)
+    for (const t of ['mudar_tema', 'trocar_texto', 'renomear_funcionalidade', 'mover_bloco', 'mostrar_bloco', 'ativar_funcionalidade', 'organizar_menu', 'css_personalizado', 'desfazer_interface', 'restaurar_interface']) {
+      expect(CHANGES_THE_APP.has(t)).toBe(true)
+      expect(off).not.toContain(t)
+      expect(on).toContain(t)
+    }
+    // reading the interface and using the features stays available in both
+    for (const t of ['ver_interface', 'guia_de_estilo', 'gerar_diagrama', 'criar_card', 'preencher_simulador_api', 'abrir_tela']) expect(off).toContain(t)
   })
 
   it('asks the open screens to open a page or fill the simulator, never anything else', () => {

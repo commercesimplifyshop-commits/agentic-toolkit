@@ -350,6 +350,31 @@ Toda funcionalidade que roda o Claude Code recebe **skills** do Agentic Toolkit,
 - As sessões continuam com `--setting-sources user` (para usar o modelo que você escolheu no Claude Code), então os seus plugins pessoais também ficam disponíveis. O system prompt orienta o Claude a preferir as skills do Agentic Toolkit.
 - As skills valem para o Claude Code. Os provedores "API da Anthropic" e "modelo local" do Pergunte ao código não as usam.
 
+## IA → Estúdio (desenvolver pelo app)
+
+Uma tela dedicada para desenvolver sem sair do Agentic Toolkit: uma conversa contínua com o Claude Code trabalhando direto no código, com o mesmo harness de uma sessão na IDE. Isso inclui todas as ferramentas nativas, os subagentes, as configurações de usuário e de projeto e a web. Cada mensagem retoma a sessão anterior (`--resume`).
+
+**Código alvo:**
+- **Modo desenvolvedor ligado:** o próprio Agentic Toolkit, no checkout de onde o servidor roda.
+- **Modo desenvolvedor desligado:** o código do projeto do workspace aberto.
+
+**Como trabalha:**
+- **Onde:** direto no checkout. Se ele estiver no `main` ou no `master`, a conversa cria uma branch `studio/<data>-<assunto>` no próprio checkout. Em outra branch, trabalha nela.
+- **Git:** faz commit e push da branch. Push em `main` e `master` e `--force` são bloqueados na sessão, e a instrução do agente também os proíbe.
+- **Segredos:** `env.php`, `auth.json` e `dw.json` nunca são lidos.
+
+**Opções a cada mensagem:**
+- **Modelo:** padrão da conta, Opus, Sonnet, Haiku ou Fable.
+- **Modo:** Automático, Planejar (investiga e escreve o plano, sem alterar) ou Aceitar edições.
+- **Esforço e web.**
+- **Anexos:** até 10 arquivos de 20 MB, enviados pelo botão, arrastados ou colados (prints, por exemplo).
+- **Voz:** o navegador transcreve a fala para o campo da mensagem (Chrome e Edge, pelo serviço de voz do navegador).
+
+**Painel de resultado:**
+- **Alterações:** commits da conversa, situação do push, arquivos alterados e o diff de cada um, sempre em relação ao commit em que a conversa começou.
+- **Prévia:** o próprio app numa moldura, com recarregar. "Reiniciar servidor" sai do processo e sobe outro (`apps/api/bin/restart-server.mjs`) para valerem as mudanças da API, com log em `~/.agentic-toolkit/core/server.log`. Para o projeto do workspace, a prévia abre o endereço da loja que você informar.
+- **Atividade:** cada ação do agente e o custo.
+
 ## IA → Harness da IA
 
 Uma categoria **IA** no menu, com o desenho da arquitetura do harness da IA configurada em Configurações → Inteligência artificial. Harness é o que roda o modelo. O desenho muda conforme o provedor:
@@ -374,7 +399,7 @@ Pelo MCP, a ferramenta `harness_da_ia` traz o mesmo retrato.
 
 ## Assistente e MCP
 
-O botão **✦ Assistente** (canto inferior direito, ou Ctrl+K), em qualquer tela, é um agente. Ele usa a IA configurada em Configurações → Inteligência artificial e as mesmas ferramentas do MCP, e sabe em que tela a pessoa está ("este diagrama", "esta tarefa", "esta rota"). Ele encadeia as funcionalidades. Por exemplo:
+O botão **✦ Assistente** (canto inferior direito, ou Ctrl+K), em qualquer tela, é um agente. **Modo desenvolvedor decide a intenção:** com ele desligado, o assistente usa as funcionalidades e não recebe as ferramentas que alteram a aplicação (nomes, textos, layout, blocos, menu, cores, CSS). Se o pedido for alterar, ele explica que é preciso ligar o modo desenvolvedor. Com ele ligado (botão ⚒ no menu fixo, abaixo da Atualização do dia, ou Ctrl+Shift+D), cada pedido é lido como uma mudança na aplicação. A regra vale para os três provedores: com o Claude Code, essas ferramentas são negadas na chamada; com a API e com modelos locais, nem são oferecidas e são recusadas se pedidas. Ele usa a IA configurada em Configurações → Inteligência artificial e as mesmas ferramentas do MCP, e sabe em que tela a pessoa está ("este diagrama", "esta tarefa", "esta rota"). Ele encadeia as funcionalidades. Por exemplo:
 
 - **Diagrama → tarefa:** "crie uma tarefa no Refinamento a partir deste diagrama". Ele lê o diagrama, cria o card com a demanda, anexa o diagrama e abre o card.
 - **Tarefa → diagrama:** "crie um diagrama de sequência desta tarefa e anexe a ela". O Claude do app desenha lendo o código, e o diagrama fica anexado ao card.

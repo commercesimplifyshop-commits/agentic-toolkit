@@ -6,6 +6,7 @@ import { LogoMark } from './Logo'
 import { initials, useShell } from './store'
 import { AutoBlocks } from './components/AutoBlocks'
 import { DevToolbar } from './components/DevToolbar'
+import { useDevMode } from './devmode'
 import { InterfaceAssistant } from './components/InterfaceAssistant'
 import { featureOfPath, isEnabled, useUi, useUiCommands, type UiPrefs } from './ui-prefs'
 
@@ -48,7 +49,10 @@ const SECTIONS: { title?: string; items: NavItem[] }[] = [
   },
   {
     title: 'IA',
-    items: [{ to: 'ia/harness', label: 'Harness da IA', icon: '◇' }],
+    items: [
+      { to: 'studio', label: 'Estúdio', icon: '⌘' },
+      { to: 'ia/harness', label: 'Harness da IA', icon: '◇' },
+    ],
   },
   {
     title: 'Ferramentas & plugins',
@@ -115,7 +119,10 @@ const SFCC_SECTIONS: { title?: string; items: NavItem[] }[] = [
   },
   {
     title: 'IA',
-    items: [{ to: 'ia/harness', label: 'Harness da IA', icon: '◇' }],
+    items: [
+      { to: 'studio', label: 'Estúdio', icon: '⌘' },
+      { to: 'ia/harness', label: 'Harness da IA', icon: '◇' },
+    ],
   },
   {
     title: 'Instância',
@@ -179,6 +186,8 @@ export function Layout() {
   const ws = workspaces.find((w) => w.id === id)
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const prefs = useUi((s) => s.prefs)
+  const devOn = useDevMode((s) => s.on)
+  const setDevOn = useDevMode((s) => s.setOn)
   const uiNotice = useUi((s) => s.notice)
   const clearUiNotice = useUi((s) => s.clearNotice)
   const applyUi = useUi((s) => s.apply)
@@ -237,7 +246,7 @@ export function Layout() {
                 : 'Visão geral')
   const feature = featureOfPath(sub, FEATURE_IDS)
   const featureOff = Boolean(feature && !isEnabled(prefs, feature))
-  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams', 'arquitetura-viva'].includes(sub)
+  const fullBleed = ['flow', 'debug', 'ask', 'code', 'api-client', 'docs', 'board', 'diagrams', 'arquitetura-viva', 'studio'].includes(sub)
 
   return (
     <div className="sf-root">
@@ -258,6 +267,15 @@ export function Layout() {
         <Link to={`/w/${id}/atualizacao`} className="sf-ws-add sf-rail-foot" title="Atualização do dia" aria-label="Atualização do dia">
           ◷
         </Link>
+        <button
+          className={`sf-ws-add sf-rail-dev ${devOn ? 'on' : ''}`}
+          onClick={() => setDevOn(!devOn)}
+          title={devOn ? 'Modo desenvolvedor ligado: o assistente altera a aplicação (Ctrl+Shift+D para desligar)' : 'Ligar o modo desenvolvedor: alterar a interface, textos, layout e cores (Ctrl+Shift+D)'}
+          aria-label="Modo desenvolvedor"
+          aria-pressed={devOn}
+        >
+          ⚒
+        </button>
       </aside>
 
       <nav className={`sf-sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -344,8 +362,8 @@ export function Layout() {
       </main>
       {/* PhpStorm navigation (Shift Shift, Alt+N, Alt+Shift+N, Ctrl+Shift+F) on every page */}
       {ws?.status === 'analyzed' && <IdeLayer workspaceId={id} />}
-      {ws?.status === 'analyzed' && <InterfaceAssistant workspaceId={id} />}
-      {ws?.status === 'analyzed' && <DevToolbar workspaceId={id} />}
+      {ws?.status === 'analyzed' && feature !== 'studio' && <InterfaceAssistant workspaceId={id} />}
+      {ws?.status === 'analyzed' && <DevToolbar workspaceId={id} hideBar={feature === 'studio'} />}
       {/* every page's sections and cards become blocks that can be moved and hidden (not the full-screen tools) */}
       {ws?.status === 'analyzed' && <AutoBlocks feature={feature} enabled={!fullBleed && !featureOff} />}
       {uiNotice && (

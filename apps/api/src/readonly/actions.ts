@@ -770,6 +770,21 @@ export const ACTIONS = {
   },
 
   'ai.harness': { kind: 'read', methods: ['GET'], description: 'Mostra o harness da IA configurada: o que roda o modelo, o que carrega e o que cada funcionalidade libera (inicia o Claude Code só até ele se apresentar)', validate: (ctx) => requireWorkspace(ctx) },
+  'studio.read': { kind: 'read', methods: ['GET'], description: 'Estúdio: conversas de desenvolvimento e as alterações no código', validate: (ctx) => requireWorkspace(ctx) },
+  'studio.write': { kind: 'data-write', methods: ['POST', 'DELETE'], description: 'Estúdio: cria, exclui ou para conversas e recebe anexos (no diretório de dados)', validate: (ctx) => requireWorkspace(ctx) },
+  'studio.run': {
+    kind: 'repo-write',
+    methods: ['POST'],
+    description: 'Estúdio: o Claude Code trabalha direto no checkout (Agentic Toolkit com o modo desenvolvedor, ou o projeto do workspace): edita, roda build e testes, faz commit e push da branch, nunca em main ou master',
+    validate: (ctx) => {
+      requireWorkspace(ctx)
+      const b = (ctx.req.body ?? {}) as Record<string, unknown>
+      if (b.text !== undefined && (typeof b.text !== 'string' || b.text.length > 20000)) fail('Mensagem de até 20000 caracteres', 'input.studio-text')
+      if (b.mode !== undefined && !['plan', 'auto', 'acceptEdits'].includes(String(b.mode))) fail('Modo inválido (plan, auto ou acceptEdits)', 'input.studio-mode')
+      if (b.attachments !== undefined && (!Array.isArray(b.attachments) || b.attachments.length > 10)) fail('Até 10 anexos por mensagem', 'input.studio-files')
+    },
+  },
+  'studio.restart': { kind: 'data-write', methods: ['POST'], description: 'Estúdio: reinicia o servidor do Agentic Toolkit para valerem as mudanças da API (o processo sai e outro sobe)' },
   'ui.get': { kind: 'read', methods: ['GET'], description: 'Preferências de interface (funcionalidades e blocos)' },
   'ui.events': { kind: 'read', methods: ['GET'], description: 'Avisa as telas abertas quando a interface muda' },
   'ui.change': {

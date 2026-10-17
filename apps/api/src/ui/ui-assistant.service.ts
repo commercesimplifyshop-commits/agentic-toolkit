@@ -19,10 +19,20 @@ export interface AssistantTurn {
 export interface AssistantContext {
   workspace?: string
   path?: string
+  /** The developer mode is on in the person's browser: the request is to change the app, not to use it */
+  devMode?: boolean
 }
 
 const MAX_ROUNDS = 24
 const SERVER = 'agentic-toolkit'
+
+/** The tools that change the app itself (names, texts, theme, menu, blocks, CSS): only with the developer mode on */
+export const CHANGES_THE_APP = new Set(MCP_TOOLS.filter((t) => t.group === 'interface' && t.writes).map((t) => t.name))
+
+/** The tools the assistant gets: without the developer mode, none of those that change the app */
+export function assistantTools(devMode: boolean) {
+  return MCP_TOOLS.filter((t) => devMode || !CHANGES_THE_APP.has(t.name))
+}
 
 /** What the screen the person is on says about "this" */
 export function describeContext(ctx: AssistantContext) {
@@ -50,8 +60,14 @@ Como agir:
 - Não invente ids: descubra com as ferramentas de consulta. Se faltar algo essencial, pergunte.
 - Responda em português, curto: o que você fez e onde ver.
 
+${
+  ctx.devMode
+    ? `MODO DESENVOLVEDOR LIGADO. A pessoa quer ALTERAR o Agentic Toolkit, não usar as funcionalidades. Leia cada pedido como uma mudança na aplicação: nomes, textos, layout, posição e visibilidade de blocos, menu, cores, tema e CSS. Ex.: "os highlights em cima" = mover o bloco highlights para o topo; "tire a atividade" = ocultar o bloco; "deixe mais azul" = mudar_tema. Antes de mudar o visual, consulte ver_interface (e guia_de_estilo para cores). Só use as funcionalidades (diagramas, tarefas, simulador, consultas) se o pedido for claramente sobre elas. Mudar o comportamento de uma funcionalidade ou criar uma nova exige alterar o código do app: diga isso e sugira uma tarefa no Refinamento.`
+    : `MODO DESENVOLVEDOR DESLIGADO. A pessoa quer USAR as funcionalidades: consultar o projeto, gerar diagramas, criar e refinar tarefas, preencher o simulador, abrir telas. Você não tem as ferramentas que alteram a aplicação (nomes, textos, layout, blocos, menu, cores, CSS). Se o pedido for alterar a aplicação, não tente: responda que alterações na aplicação são feitas com o modo desenvolvedor ligado (botão ⚒ no menu fixo à esquerda, ou Ctrl+Shift+D) e que, ligado, é só pedir de novo.`
+}
+
 Contexto da tela:
-${describeContext(ctx)}`
+${describeContext(ctx)}${ctx.devMode ? '\nModo desenvolvedor: ligado.' : '\nModo desenvolvedor: desligado.'}`
 
 /**
  * The global assistant: an agent over the same tools the MCP offers, run with the AI configured in
@@ -74,17 +90,24 @@ export class UiAssistantService {
     if (message.length > 4000) throw new BadRequestException('Pedido longo demais (até 4000 caracteres)')
     const turns = (Array.isArray(history) ? history : []).slice(-6).filter((t): t is AssistantTurn => typeof t?.message === 'string' && typeof t?.reply === 'string')
     const c = (context ?? {}) as Record<string, unknown>
-    const ctx: AssistantContext = { workspace: typeof c.workspace === 'string' && /^[a-z0-9-]{3,64}$/.test(c.workspace) ? c.workspace : undefined, path: typeof c.path === 'string' ? c.path.slice(0, 400) : undefined }
+    const ctx: AssistantContext = { workspace: typeof c.workspace === 'string' && /^[a-z0-9-]{3,64}$/.test(c.workspace) ? c.workspace : undefined, path: typeof c.path === 'string' ? c.path.slice(0, 400) : undefined, devMode: c.devMode === true }
     const job = this.jobs.create('assistente', ctx.workspace ?? '-', [{ id: 'run', label: 'Assistente' }])
     const prompt = [turns.length ? `Conversa até aqui:\n${turns.map((t) => `Pessoa: ${t.message}\nVocê: ${t.reply}`).join('\n\n')}` : '', `Pedido: ${message.trim()}`].filter(Boolean).join('\n\n')
     this.jobs.run(job, async () => {
       this.jobs.step(job, 'run', 'running')
       const provider = this.ai.settings().provider
-      const reply = provider === 'claude-code' ? await this.viaClaudeCode(job, SYSTEM(ctx), prompt) : provider === 'anthropic' ? await this.viaAnthropic(job, SYSTEM(ctx), prompt) : await this.viaOpenAi(job, SYSTEM(ctx), prompt)
+      const dev = Boolean(ctx.devMode)
+      const reply = provider === 'claude-code' ? await this.viaClaudeCode(job, SYSTEM(ctx), prompt, dev) : provider === 'anthropic' ? await this.viaAnthropic(job, SYSTEM(ctx), prompt, dev) : await this.viaOpenAi(job, SYSTEM(ctx), prompt, dev)
       job.result = { reply: reply.trim() || 'Pronto.', provider }
       this.jobs.step(job, 'run', 'done')
     })
     return { jobId: job.id }
+  }
+
+  /** Runs a tool of the in-process loops; one that changes the app is refused without the developer mode, even if the model asks for it */
+  private call(name: string, args: Record<string, unknown>, dev: boolean) {
+    if (!dev && CHANGES_THE_APP.has(name)) throw new Error('Alterar a aplicação exige o modo desenvolvedor ligado (botão ⚒ no menu fixo, ou Ctrl+Shift+D).')
+    return this.mcp.callTool(name, args)
   }
 
   private title(name: string) {
@@ -93,7 +116,7 @@ export class UiAssistantService {
 
   // ---- Claude Code: connects to the app's own MCP -------------------------------------------------
 
-  private async viaClaudeCode(job: Job, system: string, prompt: string) {
+  private async viaClaudeCode(job: Job, system: string, prompt: string, dev: boolean) {
     const bin = this.ai.claudeBinary()
     if (!bin) throw new BadRequestException('Claude Code não encontrado nesta máquina')
     const cwd = path.join(CORE_DIR, '..', 'cache', 'assistant')
@@ -101,9 +124,13 @@ export class UiAssistantService {
     const host = HOST === '0.0.0.0' || HOST === '::' ? '127.0.0.1' : HOST
     const config = path.join(cwd, `mcp-${job.id}.json`)
     fs.writeFileSync(config, JSON.stringify({ mcpServers: { [SERVER]: { type: 'http', url: `http://${host}:${PORT}/api/mcp`, headers: { Authorization: `Bearer ${this.mcpSettings.internalToken}` } } } }))
-    const allowed = MCP_TOOLS.map((t) => `mcp__${SERVER}__${t.name}`).join(',')
+    // without the developer mode the tools that change the app are not allowed, and are denied outright
+    const allowed = assistantTools(dev)
+      .map((t) => `mcp__${SERVER}__${t.name}`)
+      .join(',')
+    const denied = dev ? [] : [...CHANGES_THE_APP].map((n) => `mcp__${SERVER}__${n}`)
     const model = this.ai.settings().claudeCode.model
-    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', '', '--allowedTools', allowed, '--mcp-config', config, '--strict-mcp-config', '--setting-sources', 'user', '--no-session-persistence', '--append-system-prompt', system, ...(model ? ['--model', model] : [])]
+    const args = ['-p', '--output-format', 'stream-json', '--verbose', '--tools', '', '--allowedTools', allowed, ...(denied.length ? ['--disallowedTools', denied.join(',')] : []), '--mcp-config', config, '--strict-mcp-config', '--setting-sources', 'user', '--no-session-persistence', '--append-system-prompt', system, ...(model ? ['--model', model] : [])]
     let result = ''
     let error = ''
     try {
@@ -137,12 +164,12 @@ export class UiAssistantService {
 
   // ---- Anthropic API: tool loop here --------------------------------------------------------------
 
-  private async viaAnthropic(job: Job, system: string, prompt: string) {
+  private async viaAnthropic(job: Job, system: string, prompt: string, dev: boolean) {
     const s = this.ai.settings().anthropic
     const apiKey = this.ai.anthropicKey()
     if (!apiKey) throw new BadRequestException('Configure a chave da API da Anthropic em Configurações → Inteligência artificial')
     const client = new Anthropic({ apiKey })
-    const tools = MCP_TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema as Anthropic.Tool.InputSchema }))
+    const tools = assistantTools(dev).map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema as Anthropic.Tool.InputSchema }))
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: prompt }]
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const res = await client.messages.create({ model: s.model, max_tokens: 8000, system, tools, messages })
@@ -153,7 +180,7 @@ export class UiAssistantService {
       for (const u of uses) {
         this.jobs.log(job, `⚙ ${this.title(u.name)}`)
         try {
-          results.push({ type: 'tool_result', tool_use_id: u.id, content: await this.mcp.callTool(u.name, u.input as Record<string, unknown>) })
+          results.push({ type: 'tool_result', tool_use_id: u.id, content: await this.call(u.name, u.input as Record<string, unknown>, dev) })
         } catch (e) {
           results.push({ type: 'tool_result', tool_use_id: u.id, content: (e as Error).message, is_error: true })
         }
@@ -165,14 +192,14 @@ export class UiAssistantService {
 
   // ---- OpenAI-compatible models: function calling here --------------------------------------------
 
-  private async viaOpenAi(job: Job, system: string, prompt: string) {
+  private async viaOpenAi(job: Job, system: string, prompt: string, dev: boolean) {
     const s = this.ai.settings().openai
     type Msg = { role: string; content: string | null; tool_calls?: { id: string; type?: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }
     const messages: Msg[] = [
       { role: 'system', content: system },
       { role: 'user', content: prompt },
     ]
-    const tools = MCP_TOOLS.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } }))
+    const tools = assistantTools(dev).map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.inputSchema } }))
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const res = await fetch(`${s.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -188,7 +215,7 @@ export class UiAssistantService {
         this.jobs.log(job, `⚙ ${this.title(call.function.name)}`)
         let content: string
         try {
-          content = await this.mcp.callTool(call.function.name, JSON.parse(call.function.arguments || '{}'))
+          content = await this.call(call.function.name, JSON.parse(call.function.arguments || '{}'), dev)
         } catch (e) {
           content = `Erro: ${(e as Error).message}`
         }

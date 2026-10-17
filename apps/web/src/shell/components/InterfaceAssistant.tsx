@@ -2,7 +2,7 @@ import { Marked } from 'marked'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { api, waitJob } from '../api'
-import { useAssistantPanel } from '../devmode'
+import { useAssistantPanel, useDevMode } from '../devmode'
 
 interface Turn {
   message: string
@@ -72,6 +72,9 @@ function readSize() {
 const PROVIDER: Record<string, string> = { 'claude-code': 'Claude Code local', anthropic: 'API da Anthropic', 'openai-compatible': 'modelo compatível com OpenAI' }
 
 /** Examples by screen: what makes sense where the person is */
+/** With the developer mode on, the requests are about changing the app */
+const DEV_EXAMPLES = ['Coloque os Highlights técnicos no topo', 'Renomeie "Pergunte ao código" para "Pergunte a Sophia"', 'Deixe o destaque azul e os cartões menos arredondados', 'Esconda o bloco Atividade recente']
+
 function examples(path: string) {
   if (/\/diagrams/.test(path) && /diagram=/.test(path)) return ['Crie uma tarefa no Refinamento a partir deste diagrama', 'Explique este diagrama', 'Gere um diagrama de sequência deste fluxo']
   if (/\/refinamento\/[a-f0-9]{10}/.test(path)) return ['Crie um diagrama de sequência desta tarefa e anexe a ela', 'Refine esta tarefa', 'Quais módulos esta tarefa toca?']
@@ -86,6 +89,7 @@ function examples(path: string) {
  */
 export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
   const { open, setOpen, draft } = useAssistantPanel()
+  const devMode = useDevMode((s) => s.on)
   const [text, setText] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
@@ -168,7 +172,8 @@ export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
         message,
         history: turns.map((t) => ({ message: t.message, reply: t.reply })),
         // "this diagram", "this task": the screen the person is on
-        context: { workspace: workspaceId, path: `${location.pathname}${location.search}` },
+        // with the developer mode on, the request is to change the app (and only then the tools that change it are given)
+        context: { workspace: workspaceId, path: `${location.pathname}${location.search}`, devMode },
       })
       const job = await waitJob(jobId, (j) => setLive(j.log.filter((l) => l.startsWith('⚙')).map((l) => l.slice(2))))
       const steps = job.log.filter((l) => l.startsWith('⚙')).map((l) => l.slice(2))
@@ -201,8 +206,10 @@ export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
             }} title="Arraste para redimensionar · clique duplo volta ao tamanho padrão" />
           <div className="sf-assist-head">
             <div>
-              <strong>Assistente do toolkit</strong>
-              <span>{provider ? `Usa o ${provider}` : 'Usa a IA configurada'} · nunca altera o código</span>
+              <strong>
+                Assistente do toolkit {devMode && <em className="sf-assist-dev">⚒ alterando a aplicação</em>}
+              </strong>
+              <span>{provider ? `Usa o ${provider}` : 'Usa a IA configurada'} · {devMode ? 'modo desenvolvedor: pedidos mudam a interface' : 'usa as funcionalidades; para alterar a aplicação, ligue o modo desenvolvedor (⚒)'}</span>
             </div>
             <button className="sf-link" onClick={() => setOpen(false)} aria-label="Fechar">
               ×
@@ -212,7 +219,7 @@ export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
             {turns.length === 0 && (
               <div className="sf-assist-intro">
                 <p>Peça em linguagem natural: criar uma tarefa a partir de um diagrama, gerar o diagrama de um módulo e anexar a uma tarefa, preencher o Simulador de API, achar algo no projeto ou ajustar a interface. Ele sabe em que tela você está.</p>
-                {examples(location.pathname + location.search).map((e) => (
+                {(devMode ? DEV_EXAMPLES : examples(location.pathname + location.search)).map((e) => (
                   <button key={e} className="sf-assist-chip" onClick={() => send(e)} disabled={busy}>
                     {e}
                   </button>
@@ -245,7 +252,7 @@ export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
               void send()
             }}
           >
-            <input className="sf-input" autoFocus placeholder="Ex.: gere o diagrama do módulo de frete" value={text} onChange={(e) => setText(e.target.value)} disabled={busy} maxLength={4000} />
+            <input className="sf-input" autoFocus placeholder={devMode ? 'Ex.: mova o bloco Stack para o topo' : 'Ex.: gere o diagrama do módulo de frete'} value={text} onChange={(e) => setText(e.target.value)} disabled={busy} maxLength={4000} />
             <button className="sf-btn primary" disabled={busy || !text.trim()}>
               Enviar
             </button>
@@ -254,6 +261,11 @@ export function InterfaceAssistant({ workspaceId }: { workspaceId: string }) {
             <Link to={`/w/${workspaceId}/settings?secao=interface`} onClick={() => setOpen(false)}>
               Ajustar à mão
             </Link>
+            {devMode && (
+              <Link to={`/w/${workspaceId}/studio`} onClick={() => setOpen(false)} title="Desenvolver o Agentic Toolkit numa tela dedicada">
+                Abrir o Estúdio
+              </Link>
+            )}
             <Link to={`/w/${workspaceId}/settings?secao=mcp`} onClick={() => setOpen(false)}>
               Conectar outra IA (MCP)
             </Link>

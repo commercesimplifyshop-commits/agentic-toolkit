@@ -67,6 +67,11 @@ export class CommandRunner {
       case process.execPath:
       case 'node': {
         const script = args[0] ? path.resolve(args[0]) : ''
+        // the Studio's restart of the server: only this exact script, with its two options
+        if (script === path.resolve(__dirname, '..', '..', 'bin', 'restart-server.mjs')) {
+          if (args.length !== 5 || args[1] !== '--port' || !/^\d{2,5}$/.test(args[2]) || args[3] !== '--log') throw new ReadOnlyViolation('restart-server aceita só --port e --log', 'cmd.node-script')
+          return
+        }
         if (path.dirname(script) !== ANALYZER_DIR || !ANALYZER_SCRIPTS.has(path.basename(script))) {
           throw new ReadOnlyViolation(`Script node não permitido: ${args[0]}`, 'cmd.node-script')
         }

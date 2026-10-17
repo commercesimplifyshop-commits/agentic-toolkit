@@ -63,6 +63,8 @@ import { McpController } from './mcp/mcp.controller'
 import { McpService } from './mcp/mcp.service'
 import { UiAssistantService } from './ui/ui-assistant.service'
 import { UiController } from './ui/ui.controller'
+import { StudioController } from './studio/studio.controller'
+import { StudioService } from './studio/studio.service'
 import { HarnessService } from './ai/harness.service'
 import { UiCommandsService } from './ui/ui-commands.service'
 import { UiPrefsService } from './ui/ui-prefs.service'
@@ -71,13 +73,14 @@ import { WorkspacesService } from './workspaces/workspaces.service'
 import { ZipService } from './workspaces/zip.service'
 
 @Module({
-  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, GitHubController, LiveArchitectureController, RefineController, WorkspaceSettingsController, SkillsController, UiController, McpController],
+  controllers: [WorkspacesController, AnalysisController, FilesController, SystemController, AiController, ApiClientController, DocsController, BoardsController, DiagramsController, DiagramGenerationController, OpenSpecController, OpenSpecAuthoringController, OpenSpecExploreController, LinksController, SfccController, TechsController, NewsController, GitOpsController, GitHubController, LiveArchitectureController, RefineController, WorkspaceSettingsController, SkillsController, UiController, McpController, StudioController],
   providers: [
     // read-only enforcement: every request goes through the guard, every violation through the filter
     { provide: APP_GUARD, useClass: ReadOnlyGuard },
     { provide: APP_FILTER, useClass: ViolationFilter },
     AuditService,
     UiPrefsService,
+    StudioService,
     HarnessService,
     UiAssistantService,
     UiCommandsService,

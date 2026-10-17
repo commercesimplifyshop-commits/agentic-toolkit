@@ -17,6 +17,7 @@ import { useParams } from 'react-router-dom'
 import './shell.css'
 
 // Three.js is heavy: the 3D feature loads only when opened
+const StudioPage = lazy(() => import('./pages/StudioPage').then((m) => ({ default: m.StudioPage })))
 const HarnessPage = lazy(() => import('./pages/HarnessPage').then((m) => ({ default: m.HarnessPage })))
 const FlowPage = lazy(() => import('./pages/FlowPage').then((m) => ({ default: m.FlowPage })))
 const ApiClientPage = lazy(() => import('./pages/ApiClientPage').then((m) => ({ default: m.ApiClientPage })))
@@ -105,6 +106,7 @@ const router = createBrowserRouter([
       { path: 'sfcc/upload', element: <Suspense fallback={loading}><SfccUploadPage /></Suspense> },
       { path: 'sfcc/:section', element: <Suspense fallback={loading}><SfccPage /></Suspense> },
       { path: 'atualizacao', element: <Suspense fallback={loading}><UpdatesPage /></Suspense> },
+      { path: 'studio', element: <Suspense fallback={loading}><StudioPage /></Suspense> },
       { path: 'ia/harness', element: <Suspense fallback={loading}><HarnessPage /></Suspense> },
       { path: 'arquitetura-viva', element: <Suspense fallback={loading}><LiveArchitecturePage /></Suspense> },
       { path: 'git', element: <Suspense fallback={loading}><GitPage /></Suspense> },

@@ -30,7 +30,7 @@ function selectorOf(el: Element): string {
  * The developer mode bar (Ctrl+Shift+D): the tools to customize the interface right on the page —
  * drag blocks, edit any text, colors, CSS with an inspector, undo — and the assistant for the rest.
  */
-export function DevToolbar({ workspaceId }: { workspaceId: string }) {
+export function DevToolbar({ workspaceId, hideBar = false }: { workspaceId: string; hideBar?: boolean }) {
   const { on, tool, setOn, setTool } = useDevMode()
   const { theme, prefs, canUndo, apply } = useUi()
   const openAssistant = useAssistantPanel((s) => s.setOpen)
@@ -109,7 +109,8 @@ export function DevToolbar({ workspaceId }: { workspaceId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, tool])
 
-  if (!on) return null
+  // the shortcut keeps working where the bar is hidden (the Studio)
+  if (!on || hideBar) return null
   const colors = theme.filter((t) => t.kind === 'color')
 
   return (
@@ -166,6 +167,9 @@ export function DevToolbar({ workspaceId }: { workspaceId: string }) {
         <button disabled={!canUndo} onClick={() => run([{ type: 'undo' }])} title="Desfaz a última mudança de interface">
           ↶ Desfazer
         </button>
+        <Link className="sf-devbar-link" to={`/w/${workspaceId}/studio`} title="Desenvolver o Agentic Toolkit: conversa com o Claude Code direto no código, com prévia">
+          ⌘ Estúdio
+        </Link>
         <button onClick={() => openAssistant(true)} title="Peça em linguagem natural (também cria e liga diagramas, tarefas, simulador)">
           ✦ Assistente
         </button>
