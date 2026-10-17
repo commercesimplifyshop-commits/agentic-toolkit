@@ -6,7 +6,7 @@ import type { AiService } from '../src/ai/ai.service'
 import { ensureDataDirs } from '../src/config/paths'
 import { McpSettingsService } from '../src/mcp/mcp-settings.service'
 import { CommandRunner } from '../src/readonly/command-runner.service'
-import { StudioService } from '../src/studio/studio.service'
+import { protectedBranches, StudioService } from '../src/studio/studio.service'
 import type { WorkspacesService } from '../src/workspaces/workspaces.service'
 
 function studio() {
@@ -53,6 +53,11 @@ describe('Estúdio', () => {
     git('commit', '-q', '--allow-empty', '-m', 'x')
     git('checkout', '-q', '--detach')
     expect((await svc.branches('loja-1a2b3c')).workspace).toBe(git('rev-parse', '--short', 'HEAD'))
+  })
+
+  it('develops the toolkit on main and keeps main and master protected in a project', () => {
+    expect(protectedBranches('toolkit')).toEqual([])
+    expect(protectedBranches('workspace')).toEqual(['main', 'master'])
   })
 
   it('shows no diff for a path outside the project', async () => {

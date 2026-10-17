@@ -59,8 +59,10 @@ const DIR = path.join(CORE_DIR, 'studio')
 const SESSION_ID = /^[a-f0-9]{12}$/
 const FILE_ID = /^[a-f0-9]{16}(\.[a-z0-9]{1,8})?$/
 const MAX_FILE = 20 * 1024 * 1024
-/** Never pushed to, whatever the agent tries */
+/** Never pushed to in a project of the workspace, whatever the agent tries */
 const PROTECTED_BRANCHES = ['main', 'master']
+/** The Agentic Toolkit is developed on main: its conversations commit and push the branch the checkout is on */
+export const protectedBranches = (target: StudioSession['target']) => (target === 'toolkit' ? [] : PROTECTED_BRANCHES)
 
 const slug = (s: string) =>
   s
@@ -82,7 +84,8 @@ function detailOf(input: Record<string, unknown> | undefined) {
  * The development studio: conversations with Claude Code working straight on the checkout of the
  * Agentic Toolkit (developer mode on) or of the workspace's project, with the same harness as an
  * IDE session — every built-in tool, the user's and the project's settings, the web, a session
- * resumed at each message. It commits and pushes the branch, never main or master.
+ * resumed at each message. It commits and pushes the branch: on the toolkit, the one the checkout is on
+ * (main); on a project, never main or master.
  */
 @Injectable()
 export class StudioService {
@@ -240,7 +243,7 @@ export class StudioService {
     try {
       const current = await this.git(root, ['rev-parse', '--abbrev-ref', 'HEAD'])
       if (!s.baseCommit) s.baseCommit = await this.git(root, ['rev-parse', 'HEAD'])
-      if (PROTECTED_BRANCHES.includes(current)) {
+      if (protectedBranches(s.target).includes(current)) {
         const name = `studio/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${slug(s.title) || s.id}`
         await this.git(root, ['switch', '-c', name])
         s.branch = name
@@ -287,7 +290,7 @@ export class StudioService {
       const denied = [
         ...CLAUDE_SECRET_FILES,
         'Read(**/auth.json)',
-        ...PROTECTED_BRANCHES.flatMap((b) => [`Bash(git push origin ${b}:*)`, `Bash(git push -u origin ${b}:*)`, `Bash(git push --set-upstream origin ${b}:*)`]),
+        ...protectedBranches(s.target).flatMap((b) => [`Bash(git push origin ${b}:*)`, `Bash(git push -u origin ${b}:*)`, `Bash(git push --set-upstream origin ${b}:*)`]),
         'Bash(git push --force:*)',
         'Bash(git push -f:*)',
         'Bash(git push origin --force:*)',
@@ -296,7 +299,7 @@ export class StudioService {
       const system = [
         `Você é o agente de desenvolvimento do Estúdio do Agentic Toolkit. Trabalha direto no checkout de ${s.target === 'toolkit' ? 'o próprio Agentic Toolkit (o app que a pessoa está usando)' : `o projeto do workspace "${this.workspaces.get(s.workspaceId).name}"`}, em ${root}, na branch ${branch}.`,
         'Trabalhe como numa sessão do Claude Code na IDE: entenda o pedido, leia o código, altere, rode o build e os testes, e diga o que fez.',
-        `Git: ao concluir uma mudança que funciona, faça commit com uma mensagem clara e depois push da branch atual (git push -u origin ${branch}). Nunca faça push em main ou master, nunca use --force e nunca reescreva o histórico.`,
+        `Git: ao concluir uma mudança que funciona, faça commit com uma mensagem clara e depois push da branch atual (git push -u origin ${branch}). ${s.target === 'toolkit' ? 'O Agentic Toolkit é desenvolvido na branch main: trabalhe na branch atual sem criar outra.' : 'Nunca faça push em main ou master.'} Nunca use --force e nunca reescreva o histórico.`,
         s.target === 'toolkit'
           ? 'Este é o código do app que está servindo esta conversa. Depois de alterar, rode "npm run build" na raiz e os testes da API ("npm test -w @agentic-toolkit/api"). Mudanças na web valem ao recarregar a página; mudanças na API só depois de reiniciar o servidor, o que a pessoa faz pelo botão "Reiniciar servidor" da prévia. Nunca encerre nem reinicie o servidor você mesmo (porta ' + PORT + ').'
           : 'É o código do projeto do cliente. Nunca leia app/etc/env.php, auth.json, dw.json nem chaves.',

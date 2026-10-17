@@ -413,7 +413,8 @@ export function StudioPage() {
             <strong>{current?.title ?? 'Estúdio de desenvolvimento'}</strong>
             <span>
               {target === 'toolkit' ? 'Agentic Toolkit' : (current?.targetName ?? 'projeto do workspace')}
-              {branch ? ` · branch ${branch}` : ''}{!branch || ['main', 'master'].includes(branch) ? ' · ao começar no main, cria uma branch studio/…' : ''} · commit e push da branch, nunca em main
+              {branch ? ` · branch ${branch}` : ''}
+              {target === 'toolkit' ? ' · commit e push na branch atual' : `${!branch || ['main', 'master'].includes(branch) ? ' · ao começar no main, cria uma branch studio/…' : ''} · commit e push da branch, nunca em main`}
             </span>
           </div>
           {current && !running && (
